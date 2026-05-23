@@ -137,22 +137,6 @@
 
     <div id="tsparticles"></div>
 
-    <!-- gate -->
-    <div class="container" id="gate">
-        <a href="/" class="back-link">← wrk.money</a>
-        <h1>tools</h1>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:1rem">
-            <input type="password" id="secret-input" placeholder="admin secret" autocomplete="off"
-                style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;font-family:'JetBrains Mono',monospace;font-size:0.75rem;padding:12px 14px;border-radius:4px;outline:none;letter-spacing:2px">
-            <button id="unlock-btn"
-                style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:2px;padding:11px;border-radius:4px;cursor:pointer;transition:all 0.2s">
-                unlock
-            </button>
-            <div id="gate-err" style="font-size:0.6rem;color:rgba(255,80,80,0.7);letter-spacing:2px;min-height:1em;text-align:center"></div>
-        </div>
-    </div>
-
-    <!-- tools (hidden until unlocked) -->
     <div class="container" id="panel" style="display:none">
         <a href="/" class="back-link">← wrk.money</a>
         <h1>tools</h1>
@@ -182,39 +166,24 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
     <script>
-    function unlock(secret) {
-        fetch('https://api.wrk.money/admin/users', {
-            headers: { 'Authorization': `Bearer ${secret}` }
+    const token = localStorage.getItem('wrk_token');
+    if (!token) {
+        window.location.href = '/login?from=/tools';
+    } else {
+        fetch('https://api.wrk.money/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => {
             if (r.ok) {
-                sessionStorage.setItem('wrk_admin_secret', secret);
-                document.getElementById('gate').style.display = 'none';
                 document.getElementById('panel').style.display = 'block';
             } else {
-                document.getElementById('gate-err').textContent = 'invalid secret';
+                localStorage.removeItem('wrk_token');
+                localStorage.removeItem('wrk_slug');
+                window.location.href = '/login?from=/tools';
             }
         }).catch(() => {
-            document.getElementById('gate-err').textContent = 'connection error';
+            document.getElementById('panel').style.display = 'block';
         });
     }
-
-    // auto-unlock if already authenticated this session
-    const saved = sessionStorage.getItem('wrk_admin_secret');
-    if (saved) {
-        document.getElementById('gate').style.display = 'none';
-        document.getElementById('panel').style.display = 'block';
-    }
-
-    document.getElementById('unlock-btn').addEventListener('click', () => {
-        const s = document.getElementById('secret-input').value.trim();
-        if (s) unlock(s);
-    });
-    document.getElementById('secret-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            const s = document.getElementById('secret-input').value.trim();
-            if (s) unlock(s);
-        }
-    });
     </script>
     <script>
         tsParticles.load("tsparticles", {

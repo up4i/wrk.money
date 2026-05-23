@@ -63,6 +63,7 @@ async function getDirectory(req, env, corsHeaders) {
         displayName: profile?.displayName || u.username,
         avatar: profile?.avatar || '',
         badges: profile?.badges || [],
+        tgGiftUrl: profile?.tgGiftUrl || null,
       };
     })
   );
@@ -391,6 +392,10 @@ async function updateProfile(slug, req, env, corsHeaders) {
   if (!Array.isArray(body.bioStatements) || body.bioStatements.length < 1)
     return err('at least one bio statement is required', 400, corsHeaders);
 
+  const tgGiftUrl = String(body.tgGiftUrl || '').trim() || null;
+  if (tgGiftUrl && !/^https:\/\/t\.me\/nft\/[a-zA-Z0-9]+-\d+$/.test(tgGiftUrl))
+    return err('invalid telegram gift URL — expected https://t.me/nft/GiftName-Number', 400, corsHeaders);
+
   const updated = {
     ...existing,
     displayName: body.displayName.trim().slice(0, 50),
@@ -416,6 +421,7 @@ async function updateProfile(slug, req, env, corsHeaders) {
     bgUrl: toRawFileUrl(String(body.bgUrl || '').trim()).slice(0, 500) || null,
     bgType: ['image', 'video'].includes(body.bgType) ? body.bgType : null,
     accentColor: /^#[0-9a-fA-F]{6}$/.test(body.accentColor) ? body.accentColor : null,
+    tgGiftUrl,
     updatedAt: Date.now(),
   };
 

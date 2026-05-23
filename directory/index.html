@@ -111,10 +111,27 @@
         developer: { src: '/wrk_files/badge-developer.svg', label: 'developer' },
     };
 
+    function giftImageUrl(url) {
+        if (!url) return null;
+        const match = url.match(/t\.me\/nft\/([^/?#]+)/);
+        if (!match) return null;
+        const part = match[1];
+        const lastDash = part.lastIndexOf('-');
+        if (lastDash < 0) return null;
+        const name = part.slice(0, lastDash).replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const num = part.slice(lastDash + 1);
+        if (!name || !/^\d+$/.test(num)) return null;
+        return `https://nft.fragment.com/gift/${name}-${num}.webp`;
+    }
+
     function renderUsers(users) {
         const grid = document.getElementById('user-grid');
         if (!users.length) { grid.innerHTML = '<div class="empty">no members yet</div>'; return; }
-        grid.innerHTML = users.map(u => `
+        grid.innerHTML = users.map(u => {
+            const giftImg = u.tgGiftUrl ? giftImageUrl(u.tgGiftUrl) : null;
+            const giftSlug = u.tgGiftUrl ? (u.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/) || [])[1] || '' : '';
+            const giftBadge = giftImg ? `<img src="${escHtml(giftImg)}" alt="${escHtml(giftSlug)}" title="tg gift: ${escHtml(giftSlug)}" class="badge-img" style="border-radius:3px;border:1px solid rgba(255,255,255,0.15)" onerror="this.style.display='none'">` : '';
+            return `
             <a href="https://wrk.money/${escHtml(u.slug)}" target="_blank" class="user-card">
                 <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp" onerror="this.src='/wrk_files/999circle.png'">
                 <div class="user-card-name">${escHtml(u.displayName)}</div>
@@ -124,9 +141,10 @@
                         const b = BADGE_DEFS[id];
                         return b ? `<img src="${b.src}" alt="${b.label}" title="${b.label}" class="badge-img">` : '';
                     }).join('')}
+                    ${giftBadge}
                 </div>
-            </a>
-        `).join('');
+            </a>`;
+        }).join('');
     }
 
     document.getElementById('logout-btn').addEventListener('click', () => {

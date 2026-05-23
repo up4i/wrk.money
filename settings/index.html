@@ -242,6 +242,23 @@
         </div>
     </div>
 
+    <!-- Telegram Gift Badge -->
+    <div class="card">
+        <div class="section-title">telegram gift badge <span style="opacity:0.4">(optional)</span></div>
+        <div class="field">
+            <label>gift link</label>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="url" id="tgGiftUrl" placeholder="https://t.me/nft/CupidCharm-1234" style="flex:1">
+                <button class="btn" id="gift-clear-btn" style="white-space:nowrap;flex-shrink:0">clear</button>
+            </div>
+            <div class="hint">paste the t.me/nft link of any telegram gift — shows as a badge next to your name</div>
+        </div>
+        <div id="gift-preview" style="display:none;margin-top:10px;align-items:center;gap:10px">
+            <img id="gift-preview-img" style="width:40px;height:40px;border-radius:4px;border:1px solid var(--border);object-fit:cover" alt="gift preview" onerror="this.style.opacity='0.2'">
+            <span id="gift-preview-name" style="font-size:0.7rem;opacity:0.4;letter-spacing:1px"></span>
+        </div>
+    </div>
+
     <!-- Bio Statements -->
     <div class="card">
         <div class="section-title">bio statements <span style="opacity:0.4">(cycles with typewriter)</span></div>
@@ -440,6 +457,40 @@
         setTimeout(() => { document.getElementById('bg-status').textContent = ''; }, 1500);
     });
 
+    // ── Telegram gift badge ───────────────────────────────────────────────────
+
+    function giftImageUrl(url) {
+        if (!url) return null;
+        const match = url.match(/t\.me\/nft\/([^/?#]+)/);
+        if (!match) return null;
+        const part = match[1];
+        const lastDash = part.lastIndexOf('-');
+        if (lastDash < 0) return null;
+        const name = part.slice(0, lastDash).replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const num = part.slice(lastDash + 1);
+        if (!name || !/^\d+$/.test(num)) return null;
+        return `https://nft.fragment.com/gift/${name}-${num}.webp`;
+    }
+
+    function updateGiftPreview(url) {
+        const imgUrl = url ? giftImageUrl(url) : null;
+        const preview = document.getElementById('gift-preview');
+        if (imgUrl) {
+            document.getElementById('gift-preview-img').src = imgUrl;
+            const match = url.match(/t\.me\/nft\/([^/?#]+)/);
+            document.getElementById('gift-preview-name').textContent = match ? match[1] : '';
+            preview.style.display = 'flex';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    document.getElementById('tgGiftUrl').addEventListener('input', e => updateGiftPreview(e.target.value.trim()));
+    document.getElementById('gift-clear-btn').addEventListener('click', () => {
+        document.getElementById('tgGiftUrl').value = '';
+        document.getElementById('gift-preview').style.display = 'none';
+    });
+
     // ── Accent color ─────────────────────────────────────────────────────────
 
     let accentEnabled = false;
@@ -561,6 +612,7 @@
             ogTitle: document.getElementById('ogTitle').value.trim() || null,
             ogDescription: document.getElementById('ogDescription').value.trim() || null,
             ogImage: document.getElementById('ogImage').value.trim() || null,
+            tgGiftUrl: document.getElementById('tgGiftUrl').value.trim() || null,
         };
     }
 
@@ -644,6 +696,11 @@
             document.getElementById('ogTitle').value = profile.ogTitle || '';
             document.getElementById('ogDescription').value = profile.ogDescription || '';
             document.getElementById('ogImage').value = profile.ogImage || '';
+
+            if (profile.tgGiftUrl) {
+                document.getElementById('tgGiftUrl').value = profile.tgGiftUrl;
+                updateGiftPreview(profile.tgGiftUrl);
+            }
 
             (profile.bioStatements || []).forEach(s => addBioRow(s));
             (profile.tabs || []).forEach(t => addTabCard(t));
