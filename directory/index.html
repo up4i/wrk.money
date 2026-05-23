@@ -130,7 +130,9 @@
         grid.innerHTML = users.map(u => {
             const giftImg = u.tgGiftUrl ? giftImageUrl(u.tgGiftUrl) : null;
             const giftSlug = u.tgGiftUrl ? (u.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/) || [])[1] || '' : '';
-            const giftBadge = giftImg ? `<img src="${escHtml(giftImg)}" alt="${escHtml(giftSlug)}" title="tg gift: ${escHtml(giftSlug)}" class="badge-img" style="border-radius:3px;border:1px solid rgba(255,255,255,0.15)" onerror="this.style.display='none'">` : '';
+            const _gld = giftSlug.lastIndexOf('-');
+            const giftPretty = _gld > 0 ? giftSlug.slice(0, _gld).replace(/([a-z])([A-Z])/g,'$1 $2') + ' #' + giftSlug.slice(_gld+1) : giftSlug;
+            const giftBadge = giftImg ? `<img src="${escHtml(giftImg)}" alt="${escHtml(giftPretty)}" title="${escHtml(giftPretty)}" class="badge-img" onerror="this.style.display='none'">` : '';
             return `
             <a href="https://wrk.money/${escHtml(u.slug)}" target="_blank" class="user-card">
                 <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp" onerror="this.src='/wrk_files/999circle.png'">

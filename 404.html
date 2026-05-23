@@ -225,19 +225,39 @@
         });
 
         if (profile.tgGiftUrl) {
-            const match = profile.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/);
-            if (match) {
-                const part = match[1];
-                const lastDash = part.lastIndexOf('-');
-                if (lastDash > 0) {
-                    const name = part.slice(0, lastDash).replace(/[^a-z0-9]/gi, '').toLowerCase();
-                    const num = part.slice(lastDash + 1);
-                    if (name && /^\d+$/.test(num)) {
-                        const imgUrl = `https://nft.fragment.com/gift/${name}-${num}.webp`;
-                        const div = document.createElement('div');
-                        div.className = 'badge-container';
-                        div.innerHTML = `<a href="${escHtml(profile.tgGiftUrl)}" target="_blank" rel="noopener" style="display:inline-block"><img src="${escHtml(imgUrl)}" alt="${escHtml(part)}" class="badge-img" style="border-radius:3px;border:1px solid rgba(255,255,255,0.2)" onerror="this.parentElement.parentElement.style.display='none'"></a><span class="tooltip">${escHtml(part)}</span>`;
-                        badgesEl.appendChild(div);
+            const _m = profile.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/);
+            if (_m) {
+                const _part = _m[1], _ld = _part.lastIndexOf('-');
+                if (_ld > 0) {
+                    const _name = _part.slice(0, _ld).replace(/[^a-z0-9]/gi,'').toLowerCase();
+                    const _num = _part.slice(_ld + 1);
+                    if (_name && /^\d+$/.test(_num)) {
+                        const _pretty = _part.slice(0, _ld).replace(/([a-z])([A-Z])/g,'$1 $2') + ' #' + _num;
+                        const _gUrl = profile.tgGiftUrl;
+                        function _addGiftBadge() {
+                            const _div = document.createElement('div');
+                            _div.className = 'badge-container'; _div.dataset.system = '1';
+                            const _a = document.createElement('a');
+                            _a.href = _gUrl; _a.target = '_blank'; _a.rel = 'noopener';
+                            _a.style.cssText = 'display:inline-block;width:24px;height:24px';
+                            lottie.loadAnimation({ container: _a, renderer: 'svg', loop: true, autoplay: true,
+                                path: `https://nft.fragment.com/gift/${_name}-${_num}.lottie.json`,
+                            }).addEventListener('data_failed', () => {
+                                _a.innerHTML = '';
+                                const _img = document.createElement('img');
+                                _img.src = `https://nft.fragment.com/gift/${_name}-${_num}.webp`;
+                                _img.alt = _pretty; _img.className = 'badge-img';
+                                _img.onerror = () => { _div.style.display = 'none'; };
+                                _a.appendChild(_img);
+                            });
+                            _div.appendChild(_a);
+                            const _tt = document.createElement('span');
+                            _tt.className = 'tooltip'; _tt.textContent = _pretty;
+                            _div.appendChild(_tt);
+                            badgesEl.prepend(_div);
+                        }
+                        if (window.lottie) { _addGiftBadge(); }
+                        else { const _s = document.createElement('script'); _s.src = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js'; _s.onload = _addGiftBadge; document.head.appendChild(_s); }
                     }
                 }
             }

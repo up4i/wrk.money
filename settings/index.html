@@ -254,7 +254,7 @@
             <div class="hint">paste the t.me/nft link of any telegram gift — shows as a badge next to your name</div>
         </div>
         <div id="gift-preview" style="display:none;margin-top:10px;align-items:center;gap:10px">
-            <img id="gift-preview-img" style="width:40px;height:40px;border-radius:4px;border:1px solid var(--border);object-fit:cover" alt="gift preview" onerror="this.style.opacity='0.2'">
+            <img id="gift-preview-img" style="width:40px;height:40px;object-fit:cover" alt="gift preview" onerror="this.style.opacity='0.2'">
             <span id="gift-preview-name" style="font-size:0.7rem;opacity:0.4;letter-spacing:1px"></span>
         </div>
     </div>
@@ -472,13 +472,19 @@
         return `https://nft.fragment.com/gift/${name}-${num}.webp`;
     }
 
+    function formatGiftLabel(part) {
+        const ld = part.lastIndexOf('-');
+        if (ld <= 0) return part;
+        return part.slice(0, ld).replace(/([a-z])([A-Z])/g, '$1 $2') + ' #' + part.slice(ld + 1);
+    }
+
     function updateGiftPreview(url) {
         const imgUrl = url ? giftImageUrl(url) : null;
         const preview = document.getElementById('gift-preview');
         if (imgUrl) {
             document.getElementById('gift-preview-img').src = imgUrl;
             const match = url.match(/t\.me\/nft\/([^/?#]+)/);
-            document.getElementById('gift-preview-name').textContent = match ? match[1] : '';
+            document.getElementById('gift-preview-name').textContent = match ? formatGiftLabel(match[1]) : '';
             preview.style.display = 'flex';
         } else {
             preview.style.display = 'none';

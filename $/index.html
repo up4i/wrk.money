@@ -606,20 +606,34 @@
                                 const _name = _part.slice(0, _ld).replace(/[^a-z0-9]/gi,'').toLowerCase();
                                 const _num = _part.slice(_ld + 1);
                                 if (_name && /^\d+$/.test(_num)) {
-                                    const _div = document.createElement('div');
-                                    _div.className = 'badge-container'; _div.dataset.system = '1';
-                                    const _a = document.createElement('a');
-                                    _a.href = p.tgGiftUrl; _a.target = '_blank'; _a.rel = 'noopener'; _a.style.display = 'inline-block';
-                                    const _img = document.createElement('img');
-                                    _img.src = `https://nft.fragment.com/gift/${_name}-${_num}.webp`;
-                                    _img.alt = _part; _img.className = 'badge-img';
-                                    _img.style.cssText = 'border-radius:3px;border:1px solid rgba(255,255,255,0.2)';
-                                    _img.onerror = function(){ this.closest('.badge-container').style.display='none'; };
-                                    _a.appendChild(_img); _div.appendChild(_a);
-                                    const _tt = document.createElement('span');
-                                    _tt.className = 'tooltip'; _tt.textContent = _part;
-                                    _div.appendChild(_tt);
-                                    document.querySelector('.name-row').appendChild(_div);
+                                    const _pretty = _part.slice(0, _ld).replace(/([a-z])([A-Z])/g,'$1 $2') + ' #' + _num;
+                                    const _gUrl = p.tgGiftUrl;
+                                    function _addGiftBadge() {
+                                        const _div = document.createElement('div');
+                                        _div.className = 'badge-container'; _div.dataset.system = '1';
+                                        const _a = document.createElement('a');
+                                        _a.href = _gUrl; _a.target = '_blank'; _a.rel = 'noopener';
+                                        _a.style.cssText = 'display:inline-block;width:24px;height:24px';
+                                        lottie.loadAnimation({ container: _a, renderer: 'svg', loop: true, autoplay: true,
+                                            path: `https://nft.fragment.com/gift/${_name}-${_num}.lottie.json`,
+                                        }).addEventListener('data_failed', () => {
+                                            _a.innerHTML = '';
+                                            const _img = document.createElement('img');
+                                            _img.src = `https://nft.fragment.com/gift/${_name}-${_num}.webp`;
+                                            _img.alt = _pretty; _img.className = 'badge-img';
+                                            _img.onerror = () => { _div.style.display = 'none'; };
+                                            _a.appendChild(_img);
+                                        });
+                                        _div.appendChild(_a);
+                                        const _tt = document.createElement('span');
+                                        _tt.className = 'tooltip'; _tt.textContent = _pretty;
+                                        _div.appendChild(_tt);
+                                        const _nr = document.querySelector('.name-row');
+                                        const _h1 = _nr.querySelector('h1');
+                                        _h1 ? _h1.after(_div) : _nr.prepend(_div);
+                                    }
+                                    if (window.lottie) { _addGiftBadge(); }
+                                    else { const _s = document.createElement('script'); _s.src = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js'; _s.onload = _addGiftBadge; document.head.appendChild(_s); }
                                 }
                             }
                         }
