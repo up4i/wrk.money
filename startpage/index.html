@@ -2,345 +2,559 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>startpage | wrk.money</title>
-    <meta name="title" content="startpage | wrk.money">
-    <meta name="description" content="An ad free, clutter free, search page powered by startpage. Because there were too many ads.">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://wrk.money/">
-    <meta property="og:title" content="Startpage | wrk.money">
-    <meta property="og:description" content="An ad free, clutter free, search page powered by startpage. Because there were too many ads.">
-
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://wrk.money/">
-    <meta property="twitter:title" content="Startpage | wrk.money">
-    <meta property="twitter:description" content="An ad free, clutter free, search page powered by startpage. Because there were too many ads.">
-
-    <meta name="theme-color" content="#ffffff">
-    <link rel="icon" type="image/png" href="../wrk_files/999circle.png">
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <meta name="description" content="ad-free search, personalized for you.">
+    <meta name="theme-color" content="#0a0a0a">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
     <style>
+        :root {
+            --glass: rgba(255,255,255,0.03);
+            --border: rgba(255,255,255,0.1);
+            --text: #ffffff;
+            --dim: rgba(255,255,255,0.25);
+            --dimmer: rgba(255,255,255,0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            margin: 0; padding: 0; height: 100vh;
-            background-color: #0a0a0a; color: #ffffff;
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            overflow: hidden; display: flex;
-            flex-direction: column; align-items: center;
+            background: #0a0a0a;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            overflow-x: hidden;
         }
 
-        #particles-js { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 1; }
-
-        #content {
-            position: relative; z-index: 2; display: flex;
-            flex-direction: column; align-items: center;
-            width: 100%; height: 100%; pointer-events: none;
+        /* ── Header ──────────────────────────────────────────── */
+        .site-header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            height: 46px;
+            background: rgba(10,10,10,0.85);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px;
         }
 
-        #clock {
-            font-size: 2.5rem; font-weight: 300; margin-top: 5vh;
-            letter-spacing: 3px; opacity: 0.8; pointer-events: auto;
+        .header-logo {
+            font-size: 0.68rem; opacity: 0.35; letter-spacing: 3px;
+            text-decoration: none; color: #fff; transition: opacity 0.2s;
         }
+        .header-logo:hover { opacity: 0.7; }
 
-        .search-container {
-            margin-top: 20vh; width: 100%;
+        .header-right { display: flex; align-items: center; gap: 10px; }
+
+        .header-btn {
+            font-size: 0.6rem; letter-spacing: 2px; padding: 5px 13px;
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+            background: transparent; color: #fff; text-decoration: none;
+            font-family: 'JetBrains Mono', monospace; cursor: pointer;
+            transition: all 0.2s; text-transform: lowercase;
+        }
+        .header-btn:hover { border-color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.04); }
+
+        /* user chip */
+        .user-chip {
+            position: relative;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 4px 10px 4px 6px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 4px;
+            transition: all 0.2s;
+            background: transparent;
+        }
+        .user-chip:hover { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.03); }
+        .user-chip.visible { display: flex; }
+
+        .user-avatar {
+            width: 22px; height: 22px; border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.15);
+            object-fit: cover;
+            background: rgba(255,255,255,0.05);
+        }
+        .user-name {
+            font-size: 0.62rem; letter-spacing: 1.5px;
+            opacity: 0.7; text-transform: lowercase;
+            max-width: 120px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .chip-caret { font-size: 0.45rem; opacity: 0.4; }
+
+        .chip-dropdown {
+            position: absolute; top: calc(100% + 8px); right: 0;
+            min-width: 140px;
+            background: rgba(12,12,12,0.95);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 4px;
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+            opacity: 0; pointer-events: none;
+            transform: translateY(-6px);
+            transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+        .chip-dropdown.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+        .chip-dropdown a, .chip-dropdown button {
+            display: block; width: 100%;
+            padding: 10px 14px;
+            font-size: 0.58rem; letter-spacing: 2px;
+            color: rgba(255,255,255,0.5);
+            text-decoration: none; text-align: left; text-transform: lowercase;
+            font-family: 'JetBrains Mono', monospace;
+            background: transparent; border: none; cursor: pointer;
+            transition: all 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .chip-dropdown a:last-child, .chip-dropdown button:last-child { border-bottom: none; }
+        .chip-dropdown a:hover, .chip-dropdown button:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.9);
+        }
+        .chip-dropdown button { color: rgba(255,100,100,0.5); }
+        .chip-dropdown button:hover { color: rgba(255,120,120,0.9); background: rgba(255,80,80,0.06); }
+
+        /* ── Particles ──────────────────────────────────────── */
+        #tsparticles { position: fixed; inset: 0; z-index: 0; }
+
+        /* ── Main ───────────────────────────────────────────── */
+        .main {
+            position: relative; z-index: 1;
+            min-height: 100vh;
             display: flex; flex-direction: column;
-            align-items: center; pointer-events: auto;
+            align-items: center; justify-content: center;
+            padding: 46px 20px 60px;
+            gap: 0;
         }
 
-        #typewriter-container {
-            font-size: clamp(0.8rem, 2.5vw, 1.1rem); height: 1.5rem;
-            margin-bottom: 15px; color: #aaa;
-            font-family: 'Courier New', Courier, monospace;
-            letter-spacing: 1px; white-space: nowrap;
-            text-align: center; display: block;
-            width: 100vw; max-width: 1000px;
+        .date-line {
+            font-size: 0.58rem;
+            letter-spacing: 5px;
+            opacity: 0.18;
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
 
-        form { width: 100%; max-width: 550px; position: relative; }
-
-        input[type="text"] {
-            width: 100%; padding: 16px 28px; font-size: 1.1rem;
-            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);
-            background-color: rgba(20, 20, 20, 0.3); backdrop-filter: blur(4px);
-            color: white; outline: none; transition: all 0.3s ease;
-            box-sizing: border-box;
+        .clock {
+            font-size: clamp(2.8rem, 8vw, 4.5rem);
+            font-weight: 300;
+            letter-spacing: 2px;
+            opacity: 0.88;
+            margin-bottom: 28px;
+            font-variant-numeric: tabular-nums;
         }
 
-        input[type="text"]:focus {
-            border-color: rgba(255, 255, 255, 0.4);
-            background-color: rgba(30, 30, 30, 0.5);
+        .greeting {
+            font-size: 0.72rem;
+            letter-spacing: 3px;
+            opacity: 0;
+            text-transform: lowercase;
+            margin-bottom: 32px;
+            min-height: 1.1rem;
+            transition: opacity 0.6s ease;
+            color: rgba(255,255,255,0.45);
+        }
+        .greeting.visible { opacity: 1; }
+
+        /* ── Search ─────────────────────────────────────────── */
+        .search-wrap {
+            width: 100%;
+            max-width: 540px;
+            position: relative;
         }
 
-        /* Suggestions Engine Styles */
-        #suggestions {
-            position: absolute; top: 110%; left: 0; width: 100%;
-            background: rgba(15, 15, 15, 0.85); backdrop-filter: blur(12px);
-            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
-            overflow: hidden; display: none; z-index: 100;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        .search-form {
+            width: 100%;
+            position: relative;
         }
 
+        .search-input {
+            width: 100%;
+            padding: 15px 22px;
+            font-size: 0.95rem;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.5px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 4px;
+            color: #fff;
+            outline: none;
+            transition: all 0.25s ease;
+            backdrop-filter: blur(8px);
+        }
+        .search-input::placeholder { color: rgba(255,255,255,0.2); }
+        .search-input:focus {
+            border-color: rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .suggestions {
+            position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+            background: rgba(10,10,10,0.92);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+            display: none;
+            z-index: 50;
+        }
         .suggestion-item {
-            padding: 14px 24px; color: #aaa; cursor: pointer;
-            transition: all 0.2s; text-align: left;
-            font-size: 1rem;
+            padding: 12px 22px;
+            font-size: 0.82rem;
+            letter-spacing: 0.5px;
+            color: rgba(255,255,255,0.45);
+            cursor: pointer;
+            transition: all 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
         }
-
+        .suggestion-item:last-child { border-bottom: none; }
         .suggestion-item:hover, .suggestion-item.selected {
-            background: rgba(255, 255, 255, 0.1); color: #fff;
-            padding-left: 30px;
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.9);
+            padding-left: 28px;
         }
 
-        footer { position: absolute; bottom: 20px; width: 100%; text-align: center; z-index: 10; pointer-events: auto; }
-        .footer-link { color: #888 !important; text-decoration: none; letter-spacing: 1px; font-size: 0.9rem; opacity: 0.5; transition: all 0.3s ease; cursor: pointer; }
-        .footer-link:hover { opacity: 1; color: #ffffff !important; text-shadow: 0 0 8px rgba(255, 255, 255, 0.3); }
-
-        /* Command Shortcuts UI */
-        #shortcuts-toggle {
-            position: fixed; bottom: 20px; right: 20px;
-            width: 32px; height: 32px; border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(20,20,20,0.5); backdrop-filter: blur(5px);
-            color: #888; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 100; transition: 0.3s; pointer-events: auto;
-            font-weight: bold;
+        /* ── Typewriter strip ───────────────────────────────── */
+        .typewriter-line {
+            margin-top: 18px;
+            font-size: 0.58rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.18);
+            min-height: 1rem;
+            text-align: center;
         }
-        #shortcuts-toggle:hover { color: #fff; border-color: #fff; }
-
-        #shortcuts-menu {
-            position: fixed; bottom: 65px; right: 20px;
-            width: 240px; background: rgba(10, 10, 10, 0.9);
-            backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px; padding: 20px; z-index: 99;
-            transform: translateY(20px); opacity: 0; pointer-events: none;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        .typewriter-cursor {
+            display: inline-block;
+            width: 1px; height: 0.9em;
+            background: rgba(255,255,255,0.3);
+            margin-left: 2px;
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
         }
-        #shortcuts-menu.active { transform: translateY(0); opacity: 1; pointer-events: auto; }
-        #shortcuts-menu h3 { margin: 0 0 15px 0; font-size: 0.8rem; letter-spacing: 2px; color: #fff; opacity: 0.6; text-transform: uppercase; }
-        #shortcuts-menu ul { list-style: none; padding: 0; margin: 0; }
-        #shortcuts-menu li { margin-bottom: 10px; font-size: 0.85rem; color: #bbb; display: flex; align-items: center; }
-        #shortcuts-menu span { color: #fff; font-family: 'Courier New', monospace; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; margin-right: 12px; min-width: 30px; text-align: center; }
-        
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* ── Shortcuts ──────────────────────────────────────── */
+        .shortcuts-toggle {
+            position: fixed; bottom: 28px; right: 20px; z-index: 50;
+            width: 30px; height: 30px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(10,10,10,0.6);
+            backdrop-filter: blur(8px);
+            color: rgba(255,255,255,0.3);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem; letter-spacing: 1px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .shortcuts-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+        .shortcuts-panel {
+            position: fixed; bottom: 70px; right: 20px; z-index: 50;
+            width: 220px;
+            background: rgba(10,10,10,0.92);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 16px 18px;
+            backdrop-filter: blur(16px);
+            opacity: 0; pointer-events: none;
+            transform: translateY(10px);
+            transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+        .shortcuts-panel.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+        .shortcuts-label {
+            font-size: 0.5rem; letter-spacing: 3px;
+            opacity: 0.25; text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .shortcut-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.4);
+        }
+        .shortcut-row:last-child { margin-bottom: 0; }
+        .shortcut-key {
+            font-size: 0.55rem; letter-spacing: 1px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 3px;
+            padding: 2px 7px;
+            color: rgba(255,255,255,0.6);
+            min-width: 32px; text-align: center;
+            flex-shrink: 0;
+        }
+
+        /* ── Footer ─────────────────────────────────────────── */
+        .console-footer {
+            position: fixed;
+            bottom: 10px; left: 0;
+            font-size: 0.52rem; opacity: 0.1;
+            letter-spacing: 4px;
+            width: 100%; text-align: center; z-index: 1;
+            pointer-events: none;
+        }
+
         form button { display: none; }
+
+        @media (max-width: 480px) {
+            .clock { font-size: 2.4rem; }
+            .search-wrap { max-width: 100%; }
+            .user-name { display: none; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="particles-js"></div>
-
-    <div id="content">
-        <div id="date" style="font-size: 1rem; letter-spacing: 5px; opacity: 0.5; margin-top: 5vh; margin-bottom: -10px; font-weight: 300; pointer-events: auto;">
-        MONTH 00, 0000
+<header class="site-header">
+    <a href="/" class="header-logo">wrk.money</a>
+    <div class="header-right">
+        <div class="user-chip" id="user-chip" onclick="toggleChip()">
+            <img class="user-avatar" id="user-avatar" src="/wrk_files/999circle.png" alt="">
+            <span class="user-name" id="user-name"></span>
+            <span class="chip-caret">▼</span>
+            <div class="chip-dropdown" id="chip-dropdown">
+                <a href="/settings">settings</a>
+                <a href="/directory">directory</a>
+                <button onclick="logout(event)">logout</button>
+            </div>
         </div>
-        <div id="clock">00:00:00 AM</div>
-
-        <div class="search-container">
-            <div id="typewriter-container"><span id="typewriter"></span></div>
-            <form id="search-form" action="https://www.startpage.com/do/search" method="GET">
-                <input type="text" id="search-input" name="query" placeholder="Search Startpage..." autofocus autocomplete="off">
-                <div id="suggestions"></div>
-            </form>
-        </div>
-
-        <div id="shortcuts-toggle" onclick="toggleShortcuts()">?</div>
-        <div id="shortcuts-menu">
-            <h3>Quick Commands</h3>
-            <ul>
-                <li><span>?y</span> YouTube</li>
-                <li><span>?x</span> X</li>
-                <li><span>?gh</span> GitHub</li>
-                <li><span>?s</span> SpaceMail</li>
-                <li><span>?g</span> Gmail</li>
-                <li><span>?c</span> Coinbase</li>
-                <li><span>?r</span> Reddit</li>
-                <li><span>?ai</span> Claude</li>
-            </ul>
-        </div>
-
-        <footer>
-            <a href="https://wrk.money" target="_blank" class="footer-link">999 wrld.</a>
-        </footer>
+        <a href="/login" class="header-btn" id="login-btn" style="display:none">login</a>
     </div>
+</header>
 
-    <script>
-        // Clock Logic
-    function updateClock() {
-        const now = new Date();
-    
-        // Date Logic
-        const options = { month: 'long', day: 'numeric', year: 'numeric' };
-        const dateString = now.toLocaleDateString('en-US', options).toUpperCase();
-        document.getElementById('date').textContent = dateString;
+<div id="tsparticles"></div>
 
-        // Existing Clock Logic
-        let hours = now.getHours();
-        let minutes = now.getMinutes();
-        let seconds = now.getSeconds();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
+<main class="main">
+    <div class="date-line" id="date-line">loading...</div>
+    <div class="clock" id="clock">--:--:-- --</div>
+    <div class="greeting" id="greeting">search.</div>
 
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        minutes = minutes < 10 ? '0' + minutes : minutes;
-        seconds = seconds < 10 ? '0' + seconds : seconds;
+    <div class="search-wrap">
+        <form class="search-form" id="search-form" action="https://www.startpage.com/do/search" method="GET">
+            <input class="search-input" id="search-input" type="text" name="query"
+                placeholder="search startpage..." autofocus autocomplete="off">
+            <div class="suggestions" id="suggestions"></div>
+            <button type="submit">go</button>
+        </form>
+        <div class="typewriter-line" id="typewriter-line">
+            <span id="typewriter"></span><span class="typewriter-cursor"></span>
+        </div>
+    </div>
+</main>
 
-        const timeString = `${hours}:${minutes}:${seconds} ${ampm}`;
-        document.getElementById('clock').textContent = timeString;
+<button class="shortcuts-toggle" id="shortcuts-toggle" title="shortcuts (/)">?</button>
+<div class="shortcuts-panel" id="shortcuts-panel">
+    <div class="shortcuts-label">quick commands</div>
+    <div class="shortcut-row"><span class="shortcut-key">?y</span> youtube</div>
+    <div class="shortcut-row"><span class="shortcut-key">?x</span> x / twitter</div>
+    <div class="shortcut-row"><span class="shortcut-key">?gh</span> github</div>
+    <div class="shortcut-row"><span class="shortcut-key">?r</span> reddit</div>
+    <div class="shortcut-row"><span class="shortcut-key">?ai</span> claude</div>
+    <div class="shortcut-row"><span class="shortcut-key">?c</span> coinbase</div>
+    <div class="shortcut-row"><span class="shortcut-key">?g</span> gmail</div>
+    <div class="shortcut-row"><span class="shortcut-key">?s</span> spacemail</div>
+</div>
+
+<div class="console-footer">STARTPAGE // WRK_00</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
+<script>
+// ── Particles ──────────────────────────────────────────────────────────────
+tsParticles.load("tsparticles", {
+    particles: {
+        number: { value: 60, density: { enable: true, area: 900 } },
+        color: { value: "#ffffff" }, shape: { type: "circle" },
+        opacity: { value: 0.2 }, size: { value: { min: 1, max: 2 } },
+        links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.1, width: 1 },
+        move: { enable: true, speed: 0.5, direction: "none", outModes: { default: "out" } }
+    },
+    interactivity: {
+        events: { onHover: { enable: true, mode: "grab" }, onClick: { enable: true, mode: "push" } },
+        modes: { grab: { distance: 140, links: { opacity: 0.3 } }, push: { quantity: 2 } }
+    },
+    retina_detect: true
+});
+
+// ── Clock & Date ───────────────────────────────────────────────────────────
+function updateClock() {
+    const now = new Date();
+    const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    document.getElementById('date-line').textContent =
+        `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+    let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    const ampm = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    document.getElementById('clock').textContent =
+        `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ampm}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Greeting ───────────────────────────────────────────────────────────────
+function getTimeGreeting() {
+    const h = new Date().getHours();
+    if (h >= 5  && h < 12) return 'good morning';
+    if (h >= 12 && h < 17) return 'good afternoon';
+    if (h >= 17 && h < 21) return 'good evening';
+    return 'good night';
+}
+
+function setGreeting(name) {
+    const el = document.getElementById('greeting');
+    el.textContent = name ? `${getTimeGreeting()}, ${name}.` : 'search.';
+    el.classList.add('visible');
+}
+
+// ── Auth / Personalization (non-blocking) ──────────────────────────────────
+(async () => {
+    const token = localStorage.getItem('wrk_token');
+    if (!token) {
+        document.getElementById('login-btn').style.display = '';
+        setGreeting(null);
+        return;
     }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        // Typewriter Logic
-        const introPhrases = [
-            "Ogkush's Start Page.",
-            "Clutter Free, No Ads EVER, and Free to Use.",
-            "This site uses ZERO trackers and is open source."
-        ];
-        const randomPhrases = [
-            "All the info is out there, you just need to find it!",
-            "Bored? Check out FMHY!",
-            "Stay caffeinated, stay up.",
-            "Keep the terminal transparent.",
-            "999 wrld.",
-            "Everyday is a good day, you just need to find the good within it.",
-            "Don't have a good day... Have a great day!",
-            "'Waste no more time wondering what a good man should be. Be one.' -Marcus Aurelius",
-            "In relentless pursuit.",
-            "Google is shit anyways, that's why you're here!",
-            "We use startpage cause it give better results without AI!",
-            "Simplicity is the ultimate sophistication.",
-            "Optimized for search speed, designed for your focus.",
-            "Control the controllable; ignore the rest.",
-            "Privacy is YOUR RIGHT, don't let them trick you.",
-            "Execution over excuses.",
-            "Project made with much love by ogkush, in affiliation with wrk.money <3."
-        ];
-
-        let charIndex = 0, isDeleting = false, isIntroFinished = false, currentPhraseIndex = 0, lastRandomIndex = -1;
-        const typewriterElement = document.getElementById('typewriter');
-
-        function type() {
-            let currentPhrase = !isIntroFinished ? introPhrases[currentPhraseIndex] : randomPhrases[currentPhraseIndex];
-            typewriterElement.textContent = currentPhrase.substring(0, isDeleting ? charIndex - 1 : charIndex + 1);
-            charIndex = isDeleting ? charIndex - 1 : charIndex + 1;
-            let typeSpeed = isDeleting ? 50 : 100;
-            if (!isDeleting && charIndex === currentPhrase.length) { typeSpeed = 2000; isDeleting = true; }
-            else if (isDeleting && charIndex === 0) {
-                isDeleting = false;
-                if (!isIntroFinished) {
-                    currentPhraseIndex++;
-                    if (currentPhraseIndex >= introPhrases.length) { isIntroFinished = true; currentPhraseIndex = Math.floor(Math.random() * randomPhrases.length); }
-                } else {
-                    let nextIndex;
-                    do { nextIndex = Math.floor(Math.random() * randomPhrases.length); } while (nextIndex === lastRandomIndex);
-                    currentPhraseIndex = nextIndex; lastRandomIndex = nextIndex;
-                }
-                typeSpeed = 500;
-            }
-            setTimeout(type, typeSpeed);
-        }
-        type();
-
-        // Search Shortcuts & Redirects
-        const shortcutMap = {
-            '?y': 'https://www.youtube.com',
-            '?x': 'https://x.com',
-            '?gh': 'https://github.com',
-            '?s': 'https://spacemail.com',
-            '?g': 'https://mail.google.com',
-            '?c': 'https://www.coinbase.com',
-            '?r': 'https://www.reddit.com',
-            '?ai': 'https://claude.ai'
-        };
-
-        const searchForm = document.getElementById('search-form');
-        const input = document.getElementById('search-input');
-        const suggBox = document.getElementById('suggestions');
-        let selectedIndex = -1;
-
-        searchForm.addEventListener('submit', function(e) {
-            const query = input.value.trim().toLowerCase();
-            if (query.startsWith('?')) {
-                if (shortcutMap[query]) {
-                    e.preventDefault();
-                    window.location.href = shortcutMap[query];
-                }
-            }
+    try {
+        const res = await fetch('https://api.wrk.money/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!res.ok) throw new Error();
+        const { profile, slug } = await res.json();
+        const displayName = profile?.displayName || slug || 'user';
+        const avatar = profile?.avatar || '/wrk_files/999circle.png';
 
-        // Toggle Shortcuts UI
-        function toggleShortcuts() {
-            document.getElementById('shortcuts-menu').classList.toggle('active');
-        }
+        document.getElementById('user-avatar').src = avatar;
+        document.getElementById('user-name').textContent = displayName;
+        document.getElementById('user-chip').classList.add('visible');
+        setGreeting(displayName);
+    } catch {
+        localStorage.removeItem('wrk_token');
+        document.getElementById('login-btn').style.display = '';
+        setGreeting(null);
+    }
+})();
 
-        // Keyboard Listener (Press '/' for shortcuts)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === '/' && document.activeElement !== input) {
-                e.preventDefault();
-                toggleShortcuts();
-            }
-        });
+// ── User chip dropdown ─────────────────────────────────────────────────────
+function toggleChip() {
+    document.getElementById('chip-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#user-chip'))
+        document.getElementById('chip-dropdown').classList.remove('open');
+});
+function logout(e) {
+    e.stopPropagation();
+    localStorage.removeItem('wrk_token');
+    localStorage.removeItem('wrk_slug');
+    window.location.href = '/login';
+}
 
-        // Autosuggestions Engine
-        input.addEventListener('input', () => {
-            const q = input.value;
-            if (q.length < 2 || q.startsWith('?')) { suggBox.style.display = 'none'; return; }
-            const script = document.createElement('script');
-            script.src = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(q)}&callback=showSuggestions`;
-            document.body.appendChild(script);
-            document.body.removeChild(script);
-        });
+// ── Typewriter ─────────────────────────────────────────────────────────────
+const phrases = [
+    "no ads. no trackers. ever.",
+    "privacy is your right.",
+    "999 wrld.",
+    "execution over excuses.",
+    "in relentless pursuit.",
+    "control the controllable.",
+    "simplicity is the ultimate sophistication.",
+    "google is shit anyways.",
+    "keep the terminal transparent.",
+    "stay caffeinated, stay up.",
+];
+let tIdx = Math.floor(Math.random() * phrases.length);
+let tChar = 0, tDel = false;
+const tEl = document.getElementById('typewriter');
 
-        window.showSuggestions = (data) => {
-            const results = data[1].slice(0, 4); 
-            if (results.length === 0) { suggBox.style.display = 'none'; return; }
-            suggBox.innerHTML = results.map(s => `<div class="suggestion-item">${s}</div>`).join('');
-            suggBox.style.display = 'block';
-            selectedIndex = -1;
-            document.querySelectorAll('.suggestion-item').forEach((item) => {
-                item.addEventListener('click', () => {
-                    input.value = item.textContent;
-                    searchForm.submit();
-                });
-            });
-        };
+function type() {
+    const phrase = phrases[tIdx];
+    tEl.textContent = phrase.substring(0, tDel ? tChar - 1 : tChar + 1);
+    tChar = tDel ? tChar - 1 : tChar + 1;
+    let speed = tDel ? 40 : 80;
+    if (!tDel && tChar === phrase.length) { speed = 2800; tDel = true; }
+    else if (tDel && tChar === 0) {
+        tDel = false;
+        let next;
+        do { next = Math.floor(Math.random() * phrases.length); } while (next === tIdx);
+        tIdx = next;
+        speed = 400;
+    }
+    setTimeout(type, speed);
+}
+type();
 
-        input.addEventListener('keydown', (e) => {
-            const items = document.querySelectorAll('.suggestion-item');
-            if (e.key === 'ArrowDown') {
-                selectedIndex = (selectedIndex + 1) % items.length;
-                updateSelection(items);
-            } else if (e.key === 'ArrowUp') {
-                selectedIndex = (selectedIndex - 1 + items.length) % items.length;
-                updateSelection(items);
-            } else if (e.key === 'Enter' && selectedIndex > -1) {
-                e.preventDefault();
-                input.value = items[selectedIndex].textContent;
-                searchForm.submit();
-            }
-        });
+// ── Search shortcuts ───────────────────────────────────────────────────────
+const shortcutMap = {
+    '?y':  'https://www.youtube.com',
+    '?x':  'https://x.com',
+    '?gh': 'https://github.com',
+    '?r':  'https://www.reddit.com',
+    '?ai': 'https://claude.ai',
+    '?c':  'https://www.coinbase.com',
+    '?g':  'https://mail.google.com',
+    '?s':  'https://spacemail.com',
+};
 
-        function updateSelection(items) {
-            items.forEach((item, i) => item.classList.toggle('selected', i === selectedIndex));
-        }
+const searchForm = document.getElementById('search-form');
+const searchInput = document.getElementById('search-input');
+const suggBox = document.getElementById('suggestions');
+let selIdx = -1;
 
-        document.addEventListener('click', (e) => { if (!e.target.closest('.search-container')) suggBox.style.display = 'none'; });
+searchForm.addEventListener('submit', e => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (shortcutMap[q]) { e.preventDefault(); window.location.href = shortcutMap[q]; }
+});
 
-        // Particles Configuration
-        particlesJS("particles-js", {
-            "particles": {
-                "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
-                "color": { "value": "#ffffff" },
-                "shape": { "type": "circle" },
-                "opacity": { "value": 0.5 },
-                "size": { "value": 3, "random": true },
-                "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 },
-                "move": { "enable": true, "speed": 0.6, "out_mode": "out" }
-            },
-            "interactivity": {
-                "events": { "onhover": { "enable": true, "mode": "grab" }, "onclick": { "enable": true, "mode": "push" } }
-            },
-            "retina_detect": true
-        });
-    </script>
+// ── Autocomplete ───────────────────────────────────────────────────────────
+searchInput.addEventListener('input', () => {
+    const q = searchInput.value;
+    if (q.length < 2 || q.startsWith('?')) { suggBox.style.display = 'none'; return; }
+    const s = document.createElement('script');
+    s.src = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(q)}&callback=showSugg`;
+    document.body.appendChild(s);
+    document.body.removeChild(s);
+});
+
+window.showSugg = data => {
+    const results = data[1].slice(0, 5);
+    if (!results.length) { suggBox.style.display = 'none'; return; }
+    suggBox.innerHTML = results.map(s => `<div class="suggestion-item">${s}</div>`).join('');
+    suggBox.style.display = 'block';
+    selIdx = -1;
+    suggBox.querySelectorAll('.suggestion-item').forEach(item => {
+        item.addEventListener('click', () => { searchInput.value = item.textContent; searchForm.submit(); });
+    });
+};
+
+searchInput.addEventListener('keydown', e => {
+    const items = suggBox.querySelectorAll('.suggestion-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { selIdx = (selIdx + 1) % items.length; updateSel(items); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { selIdx = (selIdx - 1 + items.length) % items.length; updateSel(items); e.preventDefault(); }
+    else if (e.key === 'Enter' && selIdx > -1) { e.preventDefault(); searchInput.value = items[selIdx].textContent; searchForm.submit(); }
+    else if (e.key === 'Escape') { suggBox.style.display = 'none'; selIdx = -1; }
+});
+
+function updateSel(items) { items.forEach((item, i) => item.classList.toggle('selected', i === selIdx)); }
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) { suggBox.style.display = 'none'; selIdx = -1; } });
+
+// ── Shortcuts panel ────────────────────────────────────────────────────────
+const panel = document.getElementById('shortcuts-panel');
+document.getElementById('shortcuts-toggle').addEventListener('click', () => panel.classList.toggle('open'));
+document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement !== searchInput) { e.preventDefault(); panel.classList.toggle('open'); }
+    if (e.key === 'Escape') panel.classList.remove('open');
+});
+document.addEventListener('click', e => {
+    if (!e.target.closest('#shortcuts-panel') && !e.target.closest('#shortcuts-toggle'))
+        panel.classList.remove('open');
+});
+</script>
 </body>
 </html>
