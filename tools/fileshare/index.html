@@ -302,6 +302,16 @@
         }
     </style>
     <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/fileshare');</script>
+    <script>
+    (async () => {
+        const token = localStorage.getItem('wrk_token');
+        const res = await fetch('https://api.wrk.money/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/fileshare'); return; }
+        const { profile } = await res.json();
+        const isAdmin = (profile?.badges || []).includes('admin');
+        if (!isAdmin) document.getElementById('ttl').querySelector('option[value="never"]').remove();
+    })();
+    </script>
 </head>
 <body>
 
@@ -450,6 +460,7 @@
             const url = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', 'https://api.wrk.money/d');
+                xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('wrk_token')}`);
 
                 xhr.upload.addEventListener('progress', e => {
                     if (e.lengthComputable) {
