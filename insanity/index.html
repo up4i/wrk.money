@@ -562,6 +562,32 @@
                             document.querySelector('.name-row').appendChild(div);
                         });
                     }
+                    if (p.tgGiftUrl) {
+                        const _m = p.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/);
+                        if (_m) {
+                            const _part = _m[1], _ld = _part.lastIndexOf('-');
+                            if (_ld > 0) {
+                                const _name = _part.slice(0, _ld).replace(/[^a-z0-9]/gi,'').toLowerCase();
+                                const _num = _part.slice(_ld + 1);
+                                if (_name && /^\d+$/.test(_num)) {
+                                    const _div = document.createElement('div');
+                                    _div.className = 'badge-container'; _div.dataset.system = '1';
+                                    const _a = document.createElement('a');
+                                    _a.href = p.tgGiftUrl; _a.target = '_blank'; _a.rel = 'noopener'; _a.style.display = 'inline-block';
+                                    const _img = document.createElement('img');
+                                    _img.src = `https://nft.fragment.com/gift/${_name}-${_num}.webp`;
+                                    _img.alt = _part; _img.className = 'badge-img';
+                                    _img.style.cssText = 'border-radius:3px;border:1px solid rgba(255,255,255,0.2)';
+                                    _img.onerror = function(){ this.closest('.badge-container').style.display='none'; };
+                                    _a.appendChild(_img); _div.appendChild(_a);
+                                    const _tt = document.createElement('span');
+                                    _tt.className = 'tooltip'; _tt.textContent = _part;
+                                    _div.appendChild(_tt);
+                                    document.querySelector('.name-row').appendChild(_div);
+                                }
+                            }
+                        }
+                    }
                     if (p.bioStatements?.length) { phrases = p.bioStatements; pIdx = 0; cIdx = 0; isDeleting = false; }
                     if (p.musicEnabled && p.musicUrl) {
                         audio.src = p.musicUrl;
