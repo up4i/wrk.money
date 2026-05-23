@@ -224,7 +224,7 @@
             z-index: 1;
         }
     </style>
-    <script>if (!sessionStorage.getItem('wrk_admin_secret')) location.replace('/tools');</script>
+    <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/pastebin');</script>
 </head>
 <body>
 
