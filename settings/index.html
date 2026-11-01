@@ -99,6 +99,10 @@
             <input type="text" id="displayName" placeholder="your name" maxlength="50">
         </div>
         <div class="field">
+            <label for="aka">aka <span style="color:var(--muted)">(optional · other names you go by, separated by commas)</span></label>
+            <input type="text" id="aka" placeholder="nickname, old username" maxlength="300">
+        </div>
+        <div class="field">
             <label for="profileStatus">status <span style="color:var(--muted)">(optional · a short line under your name)</span></label>
             <input type="text" id="profileStatus" placeholder="what are you up to?" maxlength="60">
         </div>
@@ -356,7 +360,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=4"></script>
-<script src="/wrk_files/profile.js?v=1"></script>
+<script src="/wrk_files/profile.js?v=2"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -659,6 +663,7 @@
             ogDescription: document.getElementById('ogDescription').value.trim() || null,
             ogImage: document.getElementById('ogImage').value.trim() || null,
             tgGiftUrl: document.getElementById('tgGiftUrl').value.trim() || null,
+            aka: document.getElementById('aka').value.split(',').map(name => name.trim()).filter(Boolean),
             status: document.getElementById('profileStatus').value.trim(),
             enterText: document.getElementById('enterText').value.trim(),
             avatarShape: document.getElementById('avatarShape').value,
@@ -680,7 +685,7 @@
     // A shadow root keeps the profile's styles from touching this page, and the reverse.
     const lookPreview = document.getElementById('look-preview').attachShadow({ mode: 'open' });
     lookPreview.innerHTML = `
-        <link rel="stylesheet" href="/wrk_files/profile.css?v=1">
+        <link rel="stylesheet" href="/wrk_files/profile.css?v=2">
         <style>
             :host { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); display: block; color: #fff; font-family: 'JetBrains Mono', monospace; }
             * { box-sizing: border-box; margin: 0; }
@@ -689,12 +694,14 @@
             .name-row { display: flex; justify-content: center; }
             h1 { font-size: 1.35rem; text-transform: lowercase; overflow-wrap: anywhere; }
             .visit-count { text-align: right; }
+            .profile-aka:empty, .profile-status:empty { display: none; }
             .hub-btn { display: flex; justify-content: center; padding: 13px; background: var(--glass); border: 1px solid var(--border); color: #fff; text-decoration: none; }
         </style>
         <style id="live"></style>
         <header>
             <img class="pfp" alt="">
             <div class="name-row"><h1></h1></div>
+            <div class="profile-aka"></div>
             <div class="profile-status"></div>
             <div class="uid-label">UID #0</div>
             <div class="visit-count">123 visits</div>
@@ -708,6 +715,7 @@
         lookPreview.getElementById('live').textContent = profileCss(p, ':host');
         lookPreview.querySelector('.pfp').src = p.avatar || '/wrk_files/999circle.png';
         lookPreview.querySelector('h1').textContent = p.displayName || 'your name';
+        lookPreview.querySelector('.profile-aka').textContent = formatAka(p.aka);
         lookPreview.querySelector('.profile-status').textContent = p.status;
     }
 
@@ -804,6 +812,7 @@
             document.getElementById('ogDescription').value = profile.ogDescription || '';
             document.getElementById('ogImage').value = profile.ogImage || '';
 
+            document.getElementById('aka').value = (profile.aka || []).join(', ');
             document.getElementById('profileStatus').value = profile.status || '';
             document.getElementById('enterText').value = profile.enterText || '';
             for (const id of ['avatarShape', 'corners', 'cardStyle', 'buttonStyle', 'font', 'nameEffect', 'bgOpacity', 'musicVolume'])
