@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-const source = Buffer.from(read('./src/index.js')).toString('base64');
-const worker = (await import(`data:text/javascript;base64,${source}`)).default;
+const asModule = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+const source = read('./src/index.js').replace('./security.js', asModule(read('./src/security.js')));
+const worker = (await import(asModule(source))).default;
 
 function makeEnv(seed = {}) {
   const store = new Map(Object.entries(seed));
@@ -250,6 +251,107 @@ globalThis.fetch = realFetch;
   assert.ok(page.profileCss({ bgOpacity: 250 }).includes('#bg-media{opacity:1}'));
   assert.ok(page.profileCss({ accentColor: '#ff0000', buttonStyle: 'solid' }).includes('color:#ffffff'), 'dark buttons get light text');
   assert.ok(page.profileCss({ accentColor: '#85bb65', buttonStyle: 'solid' }).includes('color:#08090c'), 'light buttons get dark text');
+}
+
+// Saved links must be safe, and bare domains are completed.
+{
+  const env = makeEnv({
+    'user:foo': JSON.stringify({ username: 'foo', slug: 'foo', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }),
+    'profile:foo': JSON.stringify({ slug: 'foo' }),
+  });
+  const { token } = await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json();
+  const save = fields => call(env, 'https://api.wrk.money/profile/foo', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ displayName: 'foo', avatar: 'https://a.example/a.png', bioStatements: ['hi'], ...fields }),
+  });
+  const button = url => ({ tabs: [{ label: 'links', buttons: [{ text: 'go', type: 'link', url }] }] });
+
+  const good = await (await save(button('t.me/name'))).json();
+  assert.equal(good.tabs[0].buttons[0].url, 'https://t.me/name');
+  assert.equal((await (await save(button('mailto:hi@example.com'))).json()).tabs[0].buttons[0].url, 'mailto:hi@example.com');
+  assert.equal((await save({ avatar: '/wrk_files/pulsepfp.png' })).status, 200);
+
+  for (const bad of ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'java\tscript:alert(1)', ' javascript:alert(1)', 'data:text/html,x', 'vbscript:x']) {
+    assert.equal((await save(button(bad))).status, 400, bad);
+  }
+  for (const field of ['avatar', 'ogImage', 'bgUrl']) assert.equal((await save({ [field]: 'javascript:alert(1)' })).status, 400, field);
+  assert.equal((await save({ musicEnabled: true, musicUrl: 'data:audio/wav,x' })).status, 400);
+  assert.equal((await save({ avatar: 'mailto:a@b.c' })).status, 400, 'media must be http');
+}
+
+// Sessions last a week, renew while used, and stop at the 30-day limit.
+{
+  const env = makeEnv({
+    'user:foo': JSON.stringify({ username: 'foo', slug: 'foo', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }),
+    'profile:foo': JSON.stringify({ slug: 'foo' }),
+  });
+  const claims = t => JSON.parse(Buffer.from(t.split('.')[1], 'base64url'));
+  const { token } = await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json();
+  const day = 60 * 60 * 24;
+  const fresh = claims(token);
+  assert.ok(Math.abs(fresh.exp - fresh.born - 7 * day) < 5);
+
+  const me = async t => (await call(env, 'https://api.wrk.money/auth/me', { headers: { Authorization: `Bearer ${t}` } })).json();
+  assert.equal((await me(token)).token, undefined, 'a new token is not renewed');
+
+  const realNow = Date.now;
+  Date.now = () => realNow() + 2 * day * 1000;
+  const renewed = claims((await me(token)).token);
+  assert.equal(renewed.born, fresh.born, 'renewal keeps the original login time');
+  assert.ok(renewed.exp > fresh.exp);
+
+  // A chain of renewals can't pass the limit from the first login.
+  let current = token;
+  for (let d = 6; d <= 36; d += 6) {
+    Date.now = () => realNow() + d * day * 1000;
+    const answer = await me(current);
+    if (answer.error) { assert.ok(d >= 30); break; }
+    current = answer.token || current;
+    assert.ok(claims(current).exp <= fresh.born + 30 * day);
+  }
+  Date.now = () => realNow() + 31 * day * 1000;
+  assert.equal((await call(env, 'https://api.wrk.money/auth/me', { headers: { Authorization: `Bearer ${current}` } })).status, 401);
+  Date.now = realNow;
+}
+
+// Pages get security headers and a nonce on every script, but a 304 keeps the cached page's policy.
+{
+  const added = [];
+  globalThis.HTMLRewriter = class {
+    on(selector, handler) { added.push([selector, handler]); return this; }
+    transform(res) { return res; }
+  };
+  const env = makeEnv();
+  let originEncoding = 'unset';
+  globalThis.fetch = async request => {
+    originEncoding = request.headers.get('Accept-Encoding');
+    return new Response('<script></script>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  };
+  const html = await call(env, 'https://wrk.money/some-page', { headers: { 'Accept-Encoding': 'gzip, br' } });
+  assert.equal(originEncoding, null, 'the origin must not send brotli, which the rewriter cannot read');
+  const policy = html.headers.get('Content-Security-Policy-Report-Only');
+  assert.match(policy, /script-src 'nonce-[0-9a-f]{32}' 'strict-dynamic'/);
+  assert.match(policy, /frame-ancestors 'none'/);
+  assert.equal(html.headers.get('X-Content-Type-Options'), 'nosniff');
+  assert.equal(added[0][0], 'script');
+  const tag = { attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } };
+  added[0][1].element(tag);
+  assert.ok(policy.includes(`nonce-${tag.attrs.nonce}`), 'scripts carry the same nonce as the policy');
+
+  const second = await call(env, 'https://wrk.money/some-page');
+  assert.notEqual(second.headers.get('Content-Security-Policy-Report-Only'), policy, 'each load gets a new nonce');
+
+  globalThis.fetch = async () => new Response(null, { status: 304, headers: { ETag: 'x' } });
+  const cached = await call(env, 'https://wrk.money/some-page');
+  assert.equal(cached.status, 304);
+  assert.equal(cached.headers.get('Content-Security-Policy-Report-Only'), null);
+
+  globalThis.fetch = async () => new Response('body{}', { headers: { 'Content-Type': 'text/css' } });
+  const asset = await call(env, 'https://wrk.money/wrk_files/site.css');
+  assert.equal(asset.headers.get('X-Frame-Options'), 'DENY');
+  assert.equal(asset.headers.get('Content-Security-Policy-Report-Only'), null);
+  globalThis.fetch = realFetch;
 }
 
 // The shared browser script accepts what the worker accepts.

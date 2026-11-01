@@ -1,3 +1,5 @@
+import { safeLink, securePage } from './security.js';
+
 const LIMITS = {
   storageBytes: 10 * 1024 * 1024 * 1024,
   classA: 1_000_000,
@@ -211,6 +213,14 @@ async function legacyHashPassword(password, salt) {
   return toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + password)));
 }
 
+const SESSION_SECONDS = 60 * 60 * 24 * 7;
+const SESSION_MAX_SECONDS = 60 * 60 * 24 * 30;
+
+function sessionClaims(user) {
+  const now = Math.floor(Date.now() / 1000);
+  return { username: user.username, slug: user.slug, born: now, exp: now + SESSION_SECONDS };
+}
+
 async function signJWT(payload, secret) {
   const header = b64url(new TextEncoder().encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
   const body = b64url(new TextEncoder().encode(JSON.stringify(payload)));
@@ -282,7 +292,7 @@ async function login(req, env, corsHeaders, ctx) {
   if (hash !== user.passwordHash) return err('invalid credentials', 401, corsHeaders);
 
   const token = await signJWT(
-    { username: user.username, slug: user.slug, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
+    sessionClaims(user),
     env.JWT_SECRET
   );
 
@@ -312,7 +322,7 @@ async function setupAccount(req, env, corsHeaders) {
   await env.WRK_KV.put(`user:${slug}`, JSON.stringify(updated));
 
   const token = await signJWT(
-    { username: user.username, slug: user.slug, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
+    sessionClaims(user),
     env.JWT_SECRET
   );
 
@@ -361,7 +371,15 @@ async function getMe(req, env, corsHeaders) {
   const payload = await requireAuth(req, env);
   if (!payload) return err('unauthorized', 401, corsHeaders);
   const profile = await env.WRK_KV.get(`profile:${payload.slug}`, { type: 'json' });
-  return json({ username: payload.username, slug: payload.slug, profile }, 200, corsHeaders);
+  const me = { username: payload.username, slug: payload.slug, profile };
+
+  // Renew once a token is a day old, so active members stay logged in.
+  const now = Math.floor(Date.now() / 1000);
+  const limit = payload.born + SESSION_MAX_SECONDS;
+  if (payload.born && now < limit && payload.exp - now < SESSION_SECONDS - 60 * 60 * 24)
+    me.token = await signJWT({ ...payload, exp: Math.min(now + SESSION_SECONDS, limit) }, env.JWT_SECRET);
+
+  return json(me, 200, corsHeaders);
 }
 
 // ── Profile endpoints ─────────────────────────────────────────────────────────
@@ -411,6 +429,14 @@ async function updateProfile(slug, req, env, corsHeaders) {
     if (res?.status === 404) return err('that telegram gift does not exist', 400, corsHeaders);
   }
 
+  let badLink = false;
+  const link = (value, schemes) => {
+    const safe = safeLink(value, schemes);
+    if (safe === null) badLink = true;
+    return safe ?? '';
+  };
+  const media = value => toRawFileUrl(String(value ?? '').trim().startsWith('/') ? String(value).trim() : link(value, ['http:', 'https:'])).slice(0, 500);
+
   // Appearance options: anything missing or unknown keeps what's saved.
   const pick = (key, allowed) => allowed.includes(body[key]) ? body[key] : existing[key];
   const percent = key => body[key] == null || !Number.isFinite(Number(body[key])) ? existing[key] : Math.min(100, Math.max(0, Math.round(Number(body[key]))));
@@ -420,7 +446,7 @@ async function updateProfile(slug, req, env, corsHeaders) {
   const updated = {
     ...existing,
     displayName: body.displayName.trim().slice(0, 50),
-    avatar: toRawFileUrl(body.avatar.trim()).slice(0, 500),
+    avatar: media(body.avatar),
     bioStatements: body.bioStatements.map(s => String(s).trim()).filter(Boolean).slice(0, 10),
     tabs: (body.tabs || []).slice(0, 8).map(tab => ({
       label: String(tab.label || '').trim().slice(0, 30),
@@ -428,18 +454,18 @@ async function updateProfile(slug, req, env, corsHeaders) {
         const base = { text: String(btn.text || '').trim().slice(0, 40), type: btn.type === 'copy' ? 'copy' : 'link' };
         return base.type === 'copy'
           ? { ...base, value: String(btn.value || '').trim().slice(0, 200) }
-          : { ...base, url: String(btn.url || '').trim().slice(0, 500) };
+          : { ...base, url: link(btn.url).slice(0, 500) };
       }).filter(btn => btn.text),
     })).filter(tab => tab.label),
     footer: String(body.footer || '').trim().slice(0, 100),
     background: ['network', 'winter', 'starfield', 'matrix', 'visualizer'].includes(body.background) ? body.background : (existing.background || 'network'),
     ogTitle: String(body.ogTitle || '').trim().slice(0, 60) || null,
     ogDescription: String(body.ogDescription || '').trim().slice(0, 200) || null,
-    ogImage: toRawFileUrl(String(body.ogImage || '').trim()).slice(0, 500) || null,
+    ogImage: media(body.ogImage) || null,
     musicEnabled: !!body.musicEnabled,
-    musicUrl: body.musicEnabled ? toRawFileUrl(String(body.musicUrl || '').trim()).slice(0, 500) || null : null,
+    musicUrl: body.musicEnabled ? media(body.musicUrl) || null : null,
     musicTitle: body.musicEnabled ? String(body.musicTitle || '').trim().slice(0, 80) || null : null,
-    bgUrl: toRawFileUrl(String(body.bgUrl || '').trim()).slice(0, 500) || null,
+    bgUrl: media(body.bgUrl) || null,
     bgType: ['image', 'video'].includes(body.bgType) ? body.bgType : null,
     accentColor: /^#[0-9a-fA-F]{6}$/.test(body.accentColor) ? body.accentColor : null,
     tgGiftUrl,
@@ -459,6 +485,8 @@ async function updateProfile(slug, req, env, corsHeaders) {
     musicVolume: percent('musicVolume'),
     updatedAt: Date.now(),
   };
+
+  if (badLink) return err('links must be web addresses, like https://example.com', 400, corsHeaders);
 
   await env.WRK_KV.put(`profile:${slug}`, JSON.stringify(updated));
   return json(updated, 200, corsHeaders);
@@ -647,6 +675,8 @@ async function getFile(id, env, corsHeaders) {
     headers: {
       'Content-Type': meta.type,
       'Content-Disposition': isInline ? `inline; filename="${meta.name}"` : `attachment; filename="${meta.name}"`,
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+      'X-Content-Type-Options': 'nosniff',
       ...corsHeaders,
     },
   });
@@ -726,7 +756,11 @@ export default {
         }
       }
 
-      return fetch(req);
+      // The script tagging can't read brotli, so the browser's preference stays out of this fetch.
+      // Cloudflare still compresses the page on its way to the visitor.
+      const upstream = new Request(req);
+      upstream.headers.delete('Accept-Encoding');
+      return securePage(await fetch(upstream));
     }
 
     // API requests only past this point. Only writes are limited: one page view reads many
