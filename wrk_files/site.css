@@ -14,7 +14,7 @@
     --accent-soft: rgba(0, 255, 136, 0.13);
     --accent-line: rgba(0, 255, 136, 0.45);
     --on-accent: #03150c;
-    --violet: #8b5cff;
+    --gradient: linear-gradient(95deg, #ffffff 15%, #85bb65 85%);
     --danger: #ff6b6b;
     --radius: 10px;
     --nav-height: 58px;
@@ -63,7 +63,7 @@ h1 {
 .page-center { display: flex; flex-direction: column; justify-content: center; }
 
 .gradient-text {
-    background: linear-gradient(95deg, var(--accent) 10%, #7dfcc6 45%, var(--violet) 95%);
+    background: var(--gradient);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
