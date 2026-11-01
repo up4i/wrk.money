@@ -213,7 +213,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
 <script src="/wrk_files/gift.js?v=4"></script>
 <script src="/wrk_files/code-rain.js?v=2"></script>
-<script src="/wrk_files/profile.js?v=2"></script>
+<script src="/wrk_files/profile.js?v=3"></script>
 <script>
     const RESERVED = new Set([
         '$','$$','$$$','insanity','startpage','tools','404',
@@ -402,20 +402,6 @@
             }
         });
 
-        // Tab title animator
-        const displayName = profile.displayName;
-        let charIdx = 0, isRev = false;
-        function updateTab() {
-            document.title = '@' + displayName.substring(0, charIdx);
-            if (!isRev) {
-                if (charIdx < displayName.length) { charIdx++; setTimeout(updateTab, 300); }
-                else { isRev = true; setTimeout(updateTab, 2000); }
-            } else {
-                if (charIdx > 0) { charIdx--; setTimeout(updateTab, 300); }
-                else { isRev = false; setTimeout(updateTab, 500); }
-            }
-        }
-        updateTab();
     }
 
     function escHtml(str) {

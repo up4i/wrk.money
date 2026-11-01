@@ -61,6 +61,21 @@ function loadProfileFont(p) {
     document.head.appendChild(link);
 }
 
+// Types each name into the tab title in turn, then erases it for the next one.
+function startTabTitle(names) {
+    const words = names.map(name => [...name]);
+    let word = 0, chars = 0, erasing = false;
+    (function step() {
+        document.title = `@${words[word].slice(0, chars).join('')}`;
+        if (!erasing && chars < words[word].length) { chars++; return setTimeout(step, 300); }
+        if (!erasing) { erasing = true; return setTimeout(step, 2000); }
+        if (chars > 0) { chars--; return setTimeout(step, 300); }
+        erasing = false;
+        word = (word + 1) % words.length;
+        setTimeout(step, 500);
+    })();
+}
+
 function applyProfile(p) {
     loadProfileFont(p);
     const style = document.createElement('style');
@@ -96,4 +111,6 @@ function applyProfile(p) {
         const slider = document.getElementById('p-volume') || document.getElementById('volumeSlider');
         if (slider) slider.value = audio.volume;
     }
+
+    startTabTitle([...new Set([document.querySelector('.name-row h1').textContent, ...(p.aka || [])])]);
 }

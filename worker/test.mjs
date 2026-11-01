@@ -235,6 +235,14 @@ globalThis.fetch = realFetch;
   assert.equal(page.formatAka(['a', 'b', 'c']), 'aka a, b, & c');
   assert.equal(page.formatAka([]), '');
   assert.equal(page.formatAka(undefined), '');
+  const timers = [];
+  const tab = { document: {}, setTimeout: step => timers.push(step) };
+  vm.runInNewContext(read('../wrk_files/profile.js'), tab);
+  tab.startTabTitle(['ab', 'c']);
+  const titles = [tab.document.title];
+  while (titles.length < 12) { timers.shift()(); titles.push(tab.document.title); }
+  assert.equal(titles.join(' '), '@ @a @ab @ab @a @ @ @c @c @ @ @a');
+
   const clean = page.profileCss({});
   assert.ok(clean.includes('--profile-accent:#ffffff'));
   const hostile = page.profileCss({ avatarShape: 'x}body{display:none', font: 'x}body{display:none', accentColor: '#000}body{display:none', nameColor: 'red}', corners: '1px;}', bgOpacity: '1}' });
