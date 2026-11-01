@@ -728,8 +728,9 @@ export default {
       return fetch(req);
     }
 
-    // API requests only past this point — apply rate limiting
-    if (!await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
+    // API requests only past this point. Only writes are limited: one page view reads many
+    // avatars and files, and counting a read would cost a KV write per request.
+    if (req.method !== 'GET' && !await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
 
     // Auth
     if (req.method === 'POST' && path === '/auth/login')    return login(req, env, corsHeaders, ctx);

@@ -55,8 +55,13 @@ const realFetch = globalThis.fetch;
   assert.deepEqual(env.calls, { get: 0, put: 0 });
 
   const statuses = [];
-  for (let i = 0; i < 25; i++) statuses.push((await call(env, 'https://api.wrk.money/motd')).status);
+  for (let i = 0; i < 25; i++) statuses.push((await call(env, 'https://api.wrk.money/auth/login', { method: 'POST', body: '{}' })).status);
   assert.equal(statuses.filter(s => s === 429).length, 5);
+
+  // Reads aren't counted: one page view fetches many avatars and files.
+  const reads = [];
+  for (let i = 0; i < 40; i++) reads.push((await call(env, 'https://api.wrk.money/motd')).status);
+  assert.equal(reads.filter(s => s === 429).length, 0);
 
   const limited = makeEnv({ 's:abc': 'https://example.com' });
   const short = [];
