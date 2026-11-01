@@ -65,7 +65,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=1"></script>
+<script src="/wrk_files/site.js?v=2"></script>
 <div class="container">
     <div class="page-head">
         <div>
@@ -146,7 +146,7 @@
             </div>
             <div class="bg-option" data-bg="visualizer" id="bg-visualizer">
                 <div class="bg-option-name">Solar's Code Rain</div>
-                <div class="bg-option-desc">Made by <a href="/solar" target="_blank" rel="noopener" onclick="event.stopPropagation()">Solartunic2009</a> · audio-reactive matrix · colors and speed pulse with your music player</div>
+                <div class="bg-option-desc">Made by <a href="/solar" target="_blank" rel="noopener" id="solar-link">Solartunic2009</a> · audio-reactive matrix · colors and speed pulse with your music player</div>
             </div>
         </div>
         <input type="hidden" id="background" value="network">
@@ -359,7 +359,7 @@
     </div>
 </div>
 
-<script src="/wrk_files/gift.js?v=4"></script>
+<script src="/wrk_files/gift.js?v=5"></script>
 <script src="/wrk_files/profile.js?v=3"></script>
 <script>
 
@@ -553,6 +553,8 @@
     document.getElementById('accentColor').addEventListener('input', () => { accentEnabled = true; });
 
     // ── Background selector ───────────────────────────────────────────────────
+
+    document.getElementById('solar-link').addEventListener('click', e => e.stopPropagation());
 
     document.querySelectorAll('.bg-option').forEach(opt => {
         opt.addEventListener('click', () => {

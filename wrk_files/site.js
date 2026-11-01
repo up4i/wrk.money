@@ -82,6 +82,10 @@ function siteUser() {
             location.reload();
             return null;
         })
+        .then(me => {
+            if (me?.token) localStorage.setItem('wrk_token', me.token);
+            return me;
+        })
         .catch(() => null);
 }
 
@@ -99,6 +103,8 @@ function startNetwork() {
     document.body.prepend(box);
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js';
+    script.integrity = 'sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz';
+    script.crossOrigin = 'anonymous';
     script.onload = () => tsParticles.load('tsparticles', {
         // Slow drift, so 30fps looks the same as 120 and costs a quarter of the work.
         fpsLimit: 30,

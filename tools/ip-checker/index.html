@@ -52,7 +52,7 @@
     <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/ip-checker');</script>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=1"></script>
+<script src="/wrk_files/site.js?v=2"></script>
 
     <div class="container">
         <a href="/tools" class="back-link">← tools</a>
@@ -61,7 +61,7 @@
 
         <div class="input-row">
             <input type="text" id="query" placeholder="8.8.8.8  ·  google.com  ·  https://..." autocomplete="off" spellcheck="false">
-            <button id="checkBtn" onclick="runCheck()">check</button>
+            <button id="checkBtn">check</button>
         </div>
 
         <div id="status"></div>
@@ -149,6 +149,9 @@
             if (!code || code.length !== 2) return '';
             return String.fromCodePoint(...[...code.toUpperCase()].map(c => c.charCodeAt(0) + 127397));
         }
+
+        document.getElementById('checkBtn').addEventListener('click', runCheck);
+        document.getElementById('results').addEventListener('click', e => { if (e.target.id === 'rawToggle') toggleRaw(); });
 
         function esc(s) {
             if (s == null) return '—';
@@ -307,7 +310,7 @@
                         </div>
                     </div>
 
-                    <span class="raw-toggle" id="rawToggle" onclick="toggleRaw()">[ show raw data ]</span>
+                    <span class="raw-toggle" id="rawToggle">[ show raw data ]</span>
                     <pre class="raw-data" id="rawData">${esc(JSON.stringify({ ip: _rawIP, urlscan: _rawScan }, null, 2))}</pre>
                 `;
 

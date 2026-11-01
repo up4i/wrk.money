@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=1"></script>
+<script src="/wrk_files/site.js?v=2"></script>
 
 <main class="container">
     <div class="page-head">
@@ -51,7 +51,7 @@
 
 <div class="console-footer">DIRECTORY // WRK_04</div>
 
-<script src="/wrk_files/gift.js?v=4"></script>
+<script src="/wrk_files/gift.js?v=5"></script>
 <script>
     const token = localStorage.getItem('wrk_token');
     if (!token) goLogin();
@@ -83,7 +83,7 @@
             const giftBadge = gift ? `<span class="gift-model badge-img" data-url="${escHtml(gift.url)}" title="${escHtml(gift.label)}"></span>` : '';
             return `
             <a href="/${escHtml(u.slug)}" class="user-card" data-search="${escHtml(`${u.displayName} ${u.slug}`.toLowerCase())}">
-                <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp" onerror="this.src='/wrk_files/999circle.png'">
+                <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp">
                 <div class="user-card-name">${escHtml(u.displayName)}</div>
                 ${u.uid !== null && u.uid !== undefined ? `<div class="user-card-uid">UID #${u.uid}</div>` : ''}
                 <div class="user-card-badges">
@@ -95,6 +95,8 @@
                 </div>
             </a>`;
         }).join('');
+        grid.querySelectorAll('.user-card-pfp').forEach(img => img.addEventListener('error', () => { img.src = '/wrk_files/999circle.png'; }, { once: true }));
+
         // Still frames here: a grid of looping animations would add up.
         grid.querySelectorAll('.gift-model').forEach(el => drawGiftModel(el, parseGift(el.dataset.url), false).catch(() => el.remove()));
     }
