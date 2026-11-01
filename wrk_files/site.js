@@ -4,15 +4,37 @@
 const SITE_API = 'https://api.wrk.money';
 const siteMode = document.currentScript?.dataset.nav;
 
+// A member's site settings live on their account. This copy applies them before the page paints.
+function sitePrefs() {
+    if (!localStorage.getItem('wrk_token')) return {};
+    try { return JSON.parse(localStorage.getItem('wrk_prefs')) || {}; } catch { return {}; }
+}
+
+function applyPrefs(prefs) {
+    const root = document.documentElement;
+    root.dataset.theme = prefs.theme || 'wrk';
+    root.dataset.motion = prefs.motion || 'full';
+
+    const accent = /^#[0-9a-f]{6}$/i.test(prefs.accent) ? prefs.accent : null;
+    const rgb = accent && [1, 3, 5].map(i => parseInt(accent.slice(i, i + 2), 16));
+    const light = rgb && 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2] > 140;
+    const values = { '--accent': accent, '--accent-rgb': rgb?.join(', '), '--on-accent': rgb && (light ? '#08090c' : '#ffffff'), '--gradient-end': accent };
+    for (const [name, value] of Object.entries(values))
+        value ? root.style.setProperty(name, value) : root.style.removeProperty(name);
+}
+
+function clearSession() {
+    for (const key of ['wrk_token', 'wrk_slug', 'wrk_prefs']) localStorage.removeItem(key);
+}
+
 function logout() {
-    localStorage.removeItem('wrk_token');
-    localStorage.removeItem('wrk_slug');
+    clearSession();
     location.href = '/';
 }
 
 // Sends the visitor to log in, and back to this page afterwards.
 function goLogin() {
-    localStorage.removeItem('wrk_token');
+    clearSession();
     location.replace(`/login?from=${encodeURIComponent(location.pathname)}`);
 }
 
@@ -48,6 +70,7 @@ function renderNav() {
         <div class="nav-menu">
             <a class="nav-view">view my profile</a>
             <a href="/settings">edit profile</a>
+            <a href="/site-settings">site settings</a>
             <button type="button">log out</button>
         </div>`;
     nav.appendChild(user);
@@ -77,13 +100,18 @@ function siteUser() {
         .then(res => {
             if (res.status !== 401) return res.ok ? res.json() : null;
             // Expired session: reload as logged out, which also sends member pages to login.
-            localStorage.removeItem('wrk_token');
-            localStorage.removeItem('wrk_slug');
+            clearSession();
             location.reload();
             return null;
         })
         .then(me => {
             if (me?.token) localStorage.setItem('wrk_token', me.token);
+            // Settings changed on another device: use them from here on.
+            const saved = JSON.stringify(me?.prefs || {});
+            if (me && saved !== localStorage.getItem('wrk_prefs')) {
+                localStorage.setItem('wrk_prefs', saved);
+                if (siteMode !== 'mini') applyPrefs(me.prefs || {});
+            }
             return me;
         })
         .catch(() => null);
@@ -98,33 +126,51 @@ function timeGreeting() {
 }
 
 function startNetwork() {
+    const prefs = sitePrefs();
+    if (prefs.background === 'off') return;
+
     const box = document.createElement('div');
     box.id = 'tsparticles';
     document.body.prepend(box);
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js';
-    script.integrity = 'sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz';
-    script.crossOrigin = 'anonymous';
-    script.onload = () => tsParticles.load('tsparticles', {
+
+    const calm = prefs.background === 'calm';
+    const still = prefs.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const theme = getComputedStyle(document.documentElement);
+    const accent = theme.getPropertyValue('--accent').trim();
+    const load = () => tsParticles.load('tsparticles', {
         // Slow drift, so 30fps looks the same as 120 and costs a quarter of the work.
         fpsLimit: 30,
         particles: {
-            number: { value: 55, density: { enable: true, area: 900 } },
-            color: { value: ['#00ff88', '#8b5cff', '#ffffff'] },
+            number: { value: calm ? 24 : 55, density: { enable: true, area: 900 } },
+            color: { value: [accent, theme.getPropertyValue('--accent-2').trim(), '#ffffff'] },
             shape: { type: 'circle' },
-            opacity: { value: 0.45 },
+            opacity: { value: calm ? 0.3 : 0.45 },
             size: { value: { min: 1, max: 2.5 } },
-            links: { enable: true, distance: 150, color: '#7dfcc6', opacity: 0.16, width: 1 },
-            move: { enable: true, speed: 0.6, outModes: { default: 'out' } },
+            links: { enable: true, distance: 150, color: accent, opacity: calm ? 0.08 : 0.16, width: 1 },
+            move: { enable: !still, speed: calm ? 0.25 : 0.6, outModes: { default: 'out' } },
         },
         // The canvas ignores the pointer so links stay clickable, so hover is read from the window.
         interactivity: {
             detectsOn: 'window',
-            events: { onHover: { enable: true, mode: 'grab' } },
+            events: { onHover: { enable: !calm && !still, mode: 'grab' } },
             modes: { grab: { distance: 150, links: { opacity: 0.55 } } },
         },
-    });
+    }).then(container => { if (still) setTimeout(() => container.pause(), 400); });
+
+    if (window.tsParticles) return load();
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js';
+    script.integrity = 'sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz';
+    script.crossOrigin = 'anonymous';
+    script.onload = load;
     document.head.appendChild(script);
+}
+
+// Redraws the background after a setting changes.
+function restartNetwork() {
+    window.tsParticles?.domItem(0)?.destroy();
+    document.getElementById('tsparticles')?.remove();
+    startNetwork();
 }
 
 // A small way back to the site, plus an edit link when the owner is viewing their own page.
@@ -146,4 +192,4 @@ function renderMiniNav() {
 }
 
 if (siteMode === 'mini') renderMiniNav();
-else { renderNav(); startNetwork(); }
+else { applyPrefs(sitePrefs()); renderNav(); startNetwork(); }
