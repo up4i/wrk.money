@@ -7,6 +7,10 @@ const LIMITS = {
 const RATE_LIMIT_WINDOW = 60;
 const RATE_LIMIT_MAX = 20;
 
+// Workers caps PBKDF2 at 100k iterations.
+// ponytail: below OWASP's 600k for PBKDF2-SHA256, a WASM argon2 build is the upgrade path if that matters
+const PBKDF2_ITERATIONS = 100_000;
+
 const RESERVED_SLUGS = new Set([
   '$', '$$', '$$$', 'insanity', 'startpage', 'tools', '404',
   'p', 'd', 's', 'login', 'admin', 'settings', 'profile',
@@ -90,37 +94,6 @@ async function setMOTD(req, env, corsHeaders) {
   return json({ motd: text || null }, 200, corsHeaders);
 }
 
-async function getShoutbox(req, env, corsHeaders) {
-  const payload = await requireAuth(req, env);
-  if (!payload) return err('unauthorized', 401, corsHeaders);
-  const messages = await env.WRK_KV.get('shoutbox', { type: 'json' }) || [];
-  return json(messages, 200, corsHeaders);
-}
-
-async function postShoutbox(req, env, corsHeaders) {
-  const payload = await requireAuth(req, env);
-  if (!payload) return err('unauthorized', 401, corsHeaders);
-  const body = await req.json().catch(() => null);
-  const text = String(body?.text || '').trim().slice(0, 140);
-  if (!text) return err('message required', 400, corsHeaders);
-  if (await env.WRK_KV.get(`shoutbox_rl:${payload.slug}`)) return err('slow down', 429, corsHeaders);
-  await env.WRK_KV.put(`shoutbox_rl:${payload.slug}`, '1', { expirationTtl: 5 });
-  const profile = await env.WRK_KV.get(`profile:${payload.slug}`, { type: 'json' });
-  const message = {
-    slug: payload.slug,
-    uid: profile?.uid ?? null,
-    displayName: profile?.displayName || payload.username,
-    avatar: profile?.avatar || '',
-    text,
-    timestamp: Date.now(),
-  };
-  const messages = await env.WRK_KV.get('shoutbox', { type: 'json' }) || [];
-  messages.push(message);
-  if (messages.length > 50) messages.splice(0, messages.length - 50);
-  await env.WRK_KV.put('shoutbox', JSON.stringify(messages));
-  return json(message, 201, corsHeaders);
-}
-
 async function getNextUid(env) {
   const current = parseInt(await env.WRK_KV.get('uid:counter') || '0');
   await env.WRK_KV.put('uid:counter', String(current + 1));
@@ -164,11 +137,15 @@ function toRawFileUrl(url) {
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
 async function checkRateLimit(env, ip) {
-  const key = `rl:${ip}:${Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW)}`;
-  const count = parseInt(await env.WRK_KV.get(key) || '0');
-  if (count >= RATE_LIMIT_MAX) return false;
-  await env.WRK_KV.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW * 2 });
-  return true;
+  try {
+    const key = `rl:${ip}:${Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW)}`;
+    const count = parseInt(await env.WRK_KV.get(key) || '0');
+    if (count >= RATE_LIMIT_MAX) return false;
+    await env.WRK_KV.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW * 2 });
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 // ── Usage tracking ────────────────────────────────────────────────────────────
@@ -179,15 +156,19 @@ async function getUsage(env) {
 }
 
 async function incrementUsage(env, delta) {
-  const key = monthKey();
-  const usage = await getUsage(env);
-  const updated = {
-    storageBytes: usage.storageBytes + (delta.storageBytes || 0),
-    classA: usage.classA + (delta.classA || 0),
-    classB: usage.classB + (delta.classB || 0),
-  };
-  await env.WRK_KV.put(key, JSON.stringify(updated), { expirationTtl: 60 * 60 * 24 * 35 });
-  return updated;
+  try {
+    const key = monthKey();
+    const usage = await getUsage(env);
+    const updated = {
+      storageBytes: usage.storageBytes + (delta.storageBytes || 0),
+      classA: usage.classA + (delta.classA || 0),
+      classB: usage.classB + (delta.classB || 0),
+    };
+    await env.WRK_KV.put(key, JSON.stringify(updated), { expirationTtl: 60 * 60 * 24 * 35 });
+    return updated;
+  } catch {
+    return delta;
+  }
 }
 
 async function checkLimits(env, need = {}) {
@@ -212,10 +193,22 @@ function b64urlDecode(str) {
   return Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 }
 
-async function hashPassword(password, salt) {
-  const data = new TextEncoder().encode(salt + password);
-  const buf = await crypto.subtle.digest('SHA-256', data);
+function toHex(buf) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password, salt, iterations = PBKDF2_ITERATIONS) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: encoder.encode(salt), iterations }, key, 256
+  );
+  return `pbkdf2$${iterations}$${toHex(bits)}`;
+}
+
+// Accounts created before PBKDF2 keep this format until their next login.
+async function legacyHashPassword(password, salt) {
+  return toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + password)));
 }
 
 async function signJWT(payload, secret) {
@@ -272,22 +265,33 @@ function validateSlug(slug) {
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
-async function login(req, env, corsHeaders) {
+async function login(req, env, corsHeaders, ctx) {
   const body = await req.json().catch(() => null);
   if (!body?.username || !body?.password) return err('username and password required', 400, corsHeaders);
 
-  const user = await env.WRK_KV.get(`user:${body.username.toLowerCase()}`, { type: 'json' });
+  const key = `user:${body.username.toLowerCase()}`;
+  const user = await env.WRK_KV.get(key, { type: 'json' });
   if (!user) return err('invalid credentials', 401, corsHeaders);
 
   if (!user.passwordHash) return err('account not yet claimed — set your password first', 403, corsHeaders);
 
-  const hash = await hashPassword(body.password, user.salt);
+  const isLegacy = !user.passwordHash.startsWith('pbkdf2$');
+  const hash = isLegacy
+    ? await legacyHashPassword(body.password, user.salt)
+    : await hashPassword(body.password, user.salt, parseInt(user.passwordHash.split('$')[1]));
   if (hash !== user.passwordHash) return err('invalid credentials', 401, corsHeaders);
 
   const token = await signJWT(
     { username: user.username, slug: user.slug, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
     env.JWT_SECRET
   );
+
+  // Upgrade on a later tick, after the response is out, so hitting the Workers CPU limit can't block the login.
+  if (isLegacy) ctx.waitUntil((async () => {
+    await new Promise(resolve => setTimeout(resolve));
+    const passwordHash = await hashPassword(body.password, user.salt);
+    await env.WRK_KV.put(key, JSON.stringify({ ...user, passwordHash }));
+  })());
 
   return json({ token, username: user.username, slug: user.slug }, 200, corsHeaders);
 }
@@ -370,9 +374,12 @@ async function getProfile(slug, env, corsHeaders) {
 }
 
 async function recordVisit(slug, env, corsHeaders) {
-  const key = `visits:${slug}`;
-  const count = parseInt(await env.WRK_KV.get(key) || '0') + 1;
-  await env.WRK_KV.put(key, String(count));
+  let count = 0;
+  try {
+    const key = `visits:${slug}`;
+    count = parseInt(await env.WRK_KV.get(key) || '0') + 1;
+    await env.WRK_KV.put(key, String(count));
+  } catch {}
   return json({ visits: count }, 200, corsHeaders);
 }
 
@@ -392,9 +399,17 @@ async function updateProfile(slug, req, env, corsHeaders) {
   if (!Array.isArray(body.bioStatements) || body.bioStatements.length < 1)
     return err('at least one bio statement is required', 400, corsHeaders);
 
-  const tgGiftUrl = String(body.tgGiftUrl || '').trim() || null;
-  if (tgGiftUrl && !/^https:\/\/t\.me\/nft\/[a-zA-Z0-9]+-\d+$/.test(tgGiftUrl))
+  const giftInput = String(body.tgGiftUrl || '').trim();
+  const giftSlug = giftInput.match(/^(?:https?:\/\/)?t\.me\/nft\/([a-zA-Z0-9]+-\d+)(?:[/?#]|$)/i)?.[1];
+  if (giftInput && !giftSlug)
     return err('invalid telegram gift URL — expected https://t.me/nft/GiftName-Number', 400, corsHeaders);
+  const tgGiftUrl = giftSlug ? `https://t.me/nft/${giftSlug}` : null;
+
+  // Only a definite 404 rejects, so a Fragment outage can't block profile saves.
+  if (tgGiftUrl && tgGiftUrl !== existing.tgGiftUrl) {
+    const res = await fetch(`https://nft.fragment.com/gift/${giftSlug.toLowerCase()}.json`).catch(() => null);
+    if (res?.status === 404) return err('that telegram gift does not exist', 400, corsHeaders);
+  }
 
   const updated = {
     ...existing,
@@ -647,7 +662,7 @@ async function resolveShortUrl(slug, env) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const origin = req.headers.get('Origin') || '';
     const allowedOrigin = env.ALLOWED_ORIGIN || 'https://wrk.money';
@@ -661,15 +676,16 @@ export default {
       return err('forbidden', 403);
     }
 
-    const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
-    const allowed = await checkRateLimit(env, ip);
-    if (!allowed) return err('rate limit exceeded', 429, corsHeaders);
-
     const path = url.pathname;
+    const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
 
     // wrk.money requests — URL shortener + bot OG serving + passthrough
+    // skip rate limiting and KV entirely for static asset passthroughs
     if (url.hostname === 'wrk.money') {
-      if (path.startsWith('/s/')) return resolveShortUrl(path.slice(3), env);
+      if (path.startsWith('/s/')) {
+        if (!await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
+        return resolveShortUrl(path.slice(3), env);
+      }
 
       const ua = req.headers.get('User-Agent') || '';
       const isBot = /discordbot|twitterbot|facebookexternalhit|facebot|slackbot-linkexpanding|linkedinbot|whatsapp|telegrambot|applebot|iframely/i.test(ua);
@@ -693,8 +709,11 @@ export default {
       return fetch(req);
     }
 
+    // API requests only past this point — apply rate limiting
+    if (!await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
+
     // Auth
-    if (req.method === 'POST' && path === '/auth/login')    return login(req, env, corsHeaders);
+    if (req.method === 'POST' && path === '/auth/login')    return login(req, env, corsHeaders, ctx);
     if (req.method === 'POST' && path === '/auth/register') return register(req, env, corsHeaders);
     if (req.method === 'POST' && path === '/auth/setup')    return setupAccount(req, env, corsHeaders);
     if (req.method === 'GET'  && path === '/auth/me')       return getMe(req, env, corsHeaders);
@@ -705,12 +724,10 @@ export default {
     if (req.method === 'PUT' && path.startsWith('/profile/'))
       return updateProfile(path.slice(9), req, env, corsHeaders);
 
-    // Directory + MOTD + Shoutbox
+    // Directory + MOTD
     if (req.method === 'GET'  && path === '/directory')    return getDirectory(req, env, corsHeaders);
     if (req.method === 'GET'  && path === '/motd')         return getMOTD(env, corsHeaders);
     if (req.method === 'PUT'  && path === '/admin/motd')   return setMOTD(req, env, corsHeaders);
-    if (req.method === 'GET'  && path === '/shoutbox')     return getShoutbox(req, env, corsHeaders);
-    if (req.method === 'POST' && path === '/shoutbox')     return postShoutbox(req, env, corsHeaders);
 
     // Admin
     if (req.method === 'GET'    && path === '/admin/users')              return listUsers(req, env, corsHeaders);

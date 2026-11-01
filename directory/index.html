@@ -78,6 +78,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/wrk_files/gift.js"></script>
 <script>
     const token = localStorage.getItem('wrk_token');
     if (!token) window.location.href = '/login';
@@ -111,28 +112,12 @@
         developer: { src: '/wrk_files/badge-developer.svg', label: 'developer' },
     };
 
-    function giftImageUrl(url) {
-        if (!url) return null;
-        const match = url.match(/t\.me\/nft\/([^/?#]+)/);
-        if (!match) return null;
-        const part = match[1];
-        const lastDash = part.lastIndexOf('-');
-        if (lastDash < 0) return null;
-        const name = part.slice(0, lastDash).replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const num = part.slice(lastDash + 1);
-        if (!name || !/^\d+$/.test(num)) return null;
-        return `https://nft.fragment.com/gift/${name}-${num}.webp`;
-    }
-
     function renderUsers(users) {
         const grid = document.getElementById('user-grid');
         if (!users.length) { grid.innerHTML = '<div class="empty">no members yet</div>'; return; }
         grid.innerHTML = users.map(u => {
-            const giftImg = u.tgGiftUrl ? giftImageUrl(u.tgGiftUrl) : null;
-            const giftSlug = u.tgGiftUrl ? (u.tgGiftUrl.match(/t\.me\/nft\/([^/?#]+)/) || [])[1] || '' : '';
-            const _gld = giftSlug.lastIndexOf('-');
-            const giftPretty = _gld > 0 ? giftSlug.slice(0, _gld).replace(/([a-z])([A-Z])/g,'$1 $2') + ' #' + giftSlug.slice(_gld+1) : giftSlug;
-            const giftBadge = giftImg ? `<img src="${escHtml(giftImg)}" alt="${escHtml(giftPretty)}" title="${escHtml(giftPretty)}" class="badge-img" onerror="this.style.display='none'">` : '';
+            const gift = parseGift(u.tgGiftUrl);
+            const giftBadge = gift ? `<img src="${escHtml(gift.image)}" alt="${escHtml(gift.label)}" title="${escHtml(gift.label)}" class="badge-img" onerror="this.style.display='none'">` : '';
             return `
             <a href="https://wrk.money/${escHtml(u.slug)}" target="_blank" class="user-card">
                 <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp" onerror="this.src='/wrk_files/999circle.png'">

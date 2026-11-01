@@ -255,7 +255,7 @@
             <div class="hint">paste the t.me/nft link of any telegram gift — shows as a badge next to your name</div>
         </div>
         <div id="gift-preview" style="display:none;margin-top:10px;align-items:center;gap:10px">
-            <img id="gift-preview-img" style="width:40px;height:40px;object-fit:cover" alt="gift preview" onerror="this.style.opacity='0.2'">
+            <img id="gift-preview-img" style="width:40px;height:40px;object-fit:cover" alt="gift preview" onload="this.style.opacity=''" onerror="this.style.opacity='0.2'">
             <span id="gift-preview-name" style="font-size:0.7rem;opacity:0.4;letter-spacing:1px"></span>
         </div>
     </div>
@@ -291,6 +291,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/wrk_files/gift.js"></script>
 <script>
     tsParticles.load("tsparticles", {
         particles: {
@@ -460,32 +461,12 @@
 
     // ── Telegram gift badge ───────────────────────────────────────────────────
 
-    function giftImageUrl(url) {
-        if (!url) return null;
-        const match = url.match(/t\.me\/nft\/([^/?#]+)/);
-        if (!match) return null;
-        const part = match[1];
-        const lastDash = part.lastIndexOf('-');
-        if (lastDash < 0) return null;
-        const name = part.slice(0, lastDash).replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const num = part.slice(lastDash + 1);
-        if (!name || !/^\d+$/.test(num)) return null;
-        return `https://nft.fragment.com/gift/${name}-${num}.webp`;
-    }
-
-    function formatGiftLabel(part) {
-        const ld = part.lastIndexOf('-');
-        if (ld <= 0) return part;
-        return part.slice(0, ld).replace(/([a-z])([A-Z])/g, '$1 $2') + ' #' + part.slice(ld + 1);
-    }
-
     function updateGiftPreview(url) {
-        const imgUrl = url ? giftImageUrl(url) : null;
+        const gift = parseGift(url);
         const preview = document.getElementById('gift-preview');
-        if (imgUrl) {
-            document.getElementById('gift-preview-img').src = imgUrl;
-            const match = url.match(/t\.me\/nft\/([^/?#]+)/);
-            document.getElementById('gift-preview-name').textContent = match ? formatGiftLabel(match[1]) : '';
+        if (gift) {
+            document.getElementById('gift-preview-img').src = gift.image;
+            document.getElementById('gift-preview-name').textContent = gift.label;
             preview.style.display = 'flex';
         } else {
             preview.style.display = 'none';
