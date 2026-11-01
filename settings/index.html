@@ -375,7 +375,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=6"></script>
-<script src="/wrk_files/profile.js?v=5"></script>
+<script src="/wrk_files/profile.js?v=6"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -718,7 +718,7 @@
     // A shadow root keeps the profile's styles from touching this page, and the reverse.
     const lookPreview = document.getElementById('look-preview').attachShadow({ mode: 'open' });
     lookPreview.innerHTML = `
-        <link rel="stylesheet" href="/wrk_files/profile.css?v=3">
+        <link rel="stylesheet" href="/wrk_files/profile.css?v=4">
         <style>
             :host { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); display: block; color: #fff; font-family: 'JetBrains Mono', monospace; }
             * { box-sizing: border-box; margin: 0; }
