@@ -76,10 +76,30 @@ function startTabTitle(names) {
     })();
 }
 
+// Plays the gift's full card over the still while the pointer is on it. Nothing loads before that.
+function playGiftOnHover(tile, gift) {
+    const layer = document.createElement('div');
+    layer.className = 'gift-anim';
+    tile.insertBefore(layer, tile.lastChild);
+
+    let loading;
+    const sync = () => (loading ??= Promise.all([fetch(gift.lottie).then(res => res.json()), loadLottie()])
+        .then(([animationData]) => lottie.loadAnimation({ container: layer, renderer: 'svg', autoplay: false, animationData })))
+        .then(anim => {
+            const hovering = tile.matches(':hover');
+            tile.classList.toggle('playing', hovering);
+            hovering ? anim.play() : anim.stop();
+        })
+        .catch(() => { loading = null; });
+    tile.addEventListener('mouseenter', sync);
+    tile.addEventListener('mouseleave', sync);
+}
+
 // Fragment's still cards, because six animations at once is a lot of work for a phone.
 function addPinnedGifts(urls, insert) {
     const gifts = (urls || []).map(parseGift).filter(Boolean);
     if (!gifts.length) return;
+    const canAnimate = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
 
     const box = document.createElement('section');
     box.className = 'gift-box';
@@ -95,6 +115,7 @@ function addPinnedGifts(urls, insert) {
         img.onerror = () => { tile.remove(); if (!grid.children.length) box.remove(); };
         img.src = gift.image;
         tile.appendChild(document.createElement('span')).textContent = gift.number;
+        if (canAnimate) playGiftOnHover(tile, gift);
     }
     insert(box);
 }
