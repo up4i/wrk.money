@@ -86,7 +86,9 @@
         retina_detect: true
     });
 
-    const _redirectTo = new URLSearchParams(location.search).get('from') || '/settings';
+    // Only same-site paths: this value is navigated to, and a javascript: link would run on this origin.
+    const _from = new URLSearchParams(location.search).get('from') || '';
+    const _redirectTo = /^\/(?![/\\])/.test(_from) ? _from : '/settings';
     if (localStorage.getItem('wrk_token')) window.location.href = _redirectTo;
 
     const usernameEl = document.getElementById('username');
