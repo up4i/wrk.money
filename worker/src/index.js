@@ -425,6 +425,12 @@ async function recordVisit(slug, env, corsHeaders) {
   return json({ visits: count }, 200, corsHeaders);
 }
 
+// The one clean form of a t.me/nft link, or null when it isn't one.
+function cleanGiftLink(value) {
+  const slug = String(value).trim().match(/^(?:https?:\/\/)?t\.me\/nft\/([a-zA-Z0-9]+-\d+)(?:[/?#]|$)/i)?.[1];
+  return slug ? `https://t.me/nft/${slug}` : null;
+}
+
 async function updateProfile(slug, req, env, corsHeaders) {
   const payload = await requireAuth(req, env);
   if (!payload) return err('unauthorized', 401, corsHeaders);
@@ -441,17 +447,21 @@ async function updateProfile(slug, req, env, corsHeaders) {
   if (!Array.isArray(body.bioStatements) || body.bioStatements.length < 1)
     return err('at least one bio statement is required', 400, corsHeaders);
 
+  const badGift = 'invalid telegram gift URL — expected https://t.me/nft/GiftName-Number';
   const giftInput = String(body.tgGiftUrl || '').trim();
-  const giftSlug = giftInput.match(/^(?:https?:\/\/)?t\.me\/nft\/([a-zA-Z0-9]+-\d+)(?:[/?#]|$)/i)?.[1];
-  if (giftInput && !giftSlug)
-    return err('invalid telegram gift URL — expected https://t.me/nft/GiftName-Number', 400, corsHeaders);
-  const tgGiftUrl = giftSlug ? `https://t.me/nft/${giftSlug}` : null;
+  const tgGiftUrl = cleanGiftLink(giftInput);
+  if (giftInput && !tgGiftUrl) return err(badGift, 400, corsHeaders);
+
+  const pinnedGifts = Array.isArray(body.pinnedGifts) ? [...new Set(body.pinnedGifts.map(cleanGiftLink))] : existing.pinnedGifts || [];
+  if (pinnedGifts.includes(null)) return err(badGift, 400, corsHeaders);
+  if (pinnedGifts.length > 6) return err('you can pin up to 6 gifts', 400, corsHeaders);
 
   // Only a definite 404 rejects, so a Fragment outage can't block profile saves.
-  if (tgGiftUrl && tgGiftUrl !== existing.tgGiftUrl) {
-    const res = await fetch(`https://nft.fragment.com/gift/${giftSlug.toLowerCase()}.json`).catch(() => null);
-    if (res?.status === 404) return err('that telegram gift does not exist', 400, corsHeaders);
-  }
+  // Looks for the card image, because Fragment has no .json for some real gifts.
+  const newGifts = [...new Set([tgGiftUrl, ...pinnedGifts])].filter(link => link && link !== existing.tgGiftUrl && !existing.pinnedGifts?.includes(link));
+  const lookups = await Promise.all(newGifts.map(link => fetch(`https://nft.fragment.com/gift/${link.split('/').pop().toLowerCase()}.webp`, { method: 'HEAD' }).catch(() => null)));
+  const missing = newGifts.find((_, i) => lookups[i]?.status === 404);
+  if (missing) return err(`that telegram gift does not exist: ${missing}`, 400, corsHeaders);
 
   let badLink = false;
   const link = (value, schemes) => {
@@ -493,6 +503,7 @@ async function updateProfile(slug, req, env, corsHeaders) {
     bgType: ['image', 'video'].includes(body.bgType) ? body.bgType : null,
     accentColor: /^#[0-9a-fA-F]{6}$/.test(body.accentColor) ? body.accentColor : null,
     tgGiftUrl,
+    pinnedGifts,
     avatarShape: pick('avatarShape', ['square', 'rounded', 'circle']),
     corners: pick('corners', ['sharp', 'soft', 'round']),
     cardStyle: pick('cardStyle', ['glass', 'solid', 'clear']),
