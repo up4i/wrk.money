@@ -56,7 +56,7 @@ function addGiftBadge(url, insert) {
     a.href = gift.url; a.target = '_blank'; a.rel = 'noopener';
     a.className = 'badge-img';
     a.setAttribute('aria-label', gift.label);
-    a.style.cssText = 'display:block;width:clamp(34px,11vw,48px);height:clamp(34px,11vw,48px);cursor:pointer';
+    a.style.cssText = 'display:inline-block;cursor:pointer';
     div.appendChild(a);
     const tooltip = document.createElement('span');
     tooltip.className = 'tooltip'; tooltip.textContent = gift.label;

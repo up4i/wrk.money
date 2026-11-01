@@ -37,9 +37,8 @@
         .user-card-pfp { width: 48px; height: 48px; border-radius: 4px; border: 1px solid var(--border); object-fit: cover; }
         .user-card-name { font-size: 0.8rem; letter-spacing: 1px; text-transform: lowercase; opacity: 0.9; word-break: break-word; }
         .user-card-uid { font-size: 0.5rem; opacity: 0.25; letter-spacing: 2px; }
-        .user-card-badges { display: flex; gap: 4px; justify-content: center; align-items: center; flex-wrap: wrap; min-height: 16px; }
+        .user-card-badges { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; min-height: 16px; }
         .badge-img { width: 16px; height: 16px; }
-        .gift-model { width: 28px; height: 28px; }
 
         .loading { font-size: 0.7rem; opacity: 0.25; letter-spacing: 2px; text-align: center; padding: 20px 0; }
         .empty { font-size: 0.65rem; opacity: 0.2; letter-spacing: 1px; text-align: center; padding: 20px 0; }
@@ -79,7 +78,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
-<script src="/wrk_files/gift.js?v=3"></script>
+<script src="/wrk_files/gift.js?v=4"></script>
 <script>
     const token = localStorage.getItem('wrk_token');
     if (!token) window.location.href = '/login';
@@ -118,7 +117,7 @@
         if (!users.length) { grid.innerHTML = '<div class="empty">no members yet</div>'; return; }
         grid.innerHTML = users.map(u => {
             const gift = parseGift(u.tgGiftUrl);
-            const giftBadge = gift ? `<span class="gift-model" data-url="${escHtml(gift.url)}" title="${escHtml(gift.label)}"></span>` : '';
+            const giftBadge = gift ? `<span class="gift-model badge-img" data-url="${escHtml(gift.url)}" title="${escHtml(gift.label)}"></span>` : '';
             return `
             <a href="https://wrk.money/${escHtml(u.slug)}" target="_blank" class="user-card">
                 <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp" onerror="this.src='/wrk_files/999circle.png'">
