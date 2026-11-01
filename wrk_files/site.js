@@ -124,6 +124,7 @@ function startNetwork() {
 // A small way back to the site, plus an edit link when the owner is viewing their own page.
 function renderMiniNav() {
     const pill = document.createElement('div');
+    pill.className = 'mini-nav';
     pill.style.cssText = 'position:fixed;top:14px;left:14px;z-index:900;display:flex;gap:2px;padding:4px;background:rgba(6,7,11,.72);border:1px solid rgba(255,255,255,.14);border-radius:9px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font:700 12px "JetBrains Mono",monospace';
     const add = (href, text) => {
         const a = pill.appendChild(document.createElement('a'));
