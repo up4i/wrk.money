@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>site settings | wrk.money</title>
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=2">
+    <style>
+        .container { max-width: 720px; }
+        body { padding-bottom: 110px; }
+        .choices { border: 0; margin-bottom: 18px; min-width: 0; }
+        .choices:last-child { margin-bottom: 0; }
+        .choice-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .choices label { position: relative; cursor: pointer; }
+        .choices input { position: absolute; opacity: 0; }
+        .choices span { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--glass); color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+        .choices label:hover span { color: var(--text); border-color: var(--border-strong); }
+        .choices input:checked + span { color: var(--text); border-color: var(--accent-line); background: var(--accent-soft); }
+        .choices input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .choices i { width: 13px; height: 13px; border-radius: 50%; background: var(--swatch); }
+        .accent-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .accent-row [hidden] { display: none; }
+        .accent-row input { width: 44px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--glass); cursor: pointer; }
+        .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .toggle-row input { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+        .toggle-row label { font-size: 0.82rem; cursor: pointer; }
+        .command { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.78rem; }
+        .command b { color: var(--accent); }
+        .command span { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+        .command-add { display: grid; grid-template-columns: 100px 1fr auto; gap: 8px; margin-top: 12px; }
+        .save-msg { font-size: 0.8rem; opacity: 0; transition: opacity 0.3s; }
+        .save-msg:empty { display: none; }
+        .save-msg.ok { color: var(--accent); opacity: 1; }
+        .save-msg.err { color: var(--danger); opacity: 1; }
+        @media (max-width: 640px) { .command-add { grid-template-columns: 90px 1fr; } .command-add button { grid-column: 1 / -1; } }
+    </style>
+</head>
+<body>
+<script src="/wrk_files/site.js?v=3"></script>
+
+<main class="container">
+    <div class="page-head">
+        <div>
+            <h1>site settings</h1>
+            <p class="page-sub">how wrk.money looks and works for you. nobody else sees these.</p>
+        </div>
+        <div class="page-actions">
+            <div class="save-msg" id="save-msg" role="status"></div>
+            <a href="/settings" class="btn">edit profile</a>
+        </div>
+    </div>
+
+    <div id="prefs">
+        <section class="card">
+            <div class="section-label">theme</div>
+            <fieldset class="choices">
+                <legend class="field-label">colors</legend>
+                <div class="choice-list">
+                    <label><input type="radio" name="theme" value="wrk"><span><i style="--swatch:#00ff88"></i>wrk</span></label>
+                    <label><input type="radio" name="theme" value="money"><span><i style="--swatch:#85bb65"></i>money</span></label>
+                    <label><input type="radio" name="theme" value="ocean"><span><i style="--swatch:#38bdf8"></i>ocean</span></label>
+                    <label><input type="radio" name="theme" value="ember"><span><i style="--swatch:#ff7a3d"></i>ember</span></label>
+                    <label><input type="radio" name="theme" value="violet"><span><i style="--swatch:#a78bfa"></i>violet</span></label>
+                    <label><input type="radio" name="theme" value="rose"><span><i style="--swatch:#fb7185"></i>rose</span></label>
+                    <label><input type="radio" name="theme" value="mono"><span><i style="--swatch:#ffffff"></i>mono</span></label>
+                </div>
+            </fieldset>
+            <div class="field-label">your own accent</div>
+            <div class="accent-row">
+                <input type="color" name="accent" aria-label="accent color">
+                <button type="button" class="btn" id="accent-clear" hidden>use the theme's color</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-label">background and motion</div>
+            <fieldset class="choices">
+                <legend class="field-label">background</legend>
+                <div class="choice-list">
+                    <label><input type="radio" name="background" value="network"><span>network</span></label>
+                    <label><input type="radio" name="background" value="calm"><span>calmer</span></label>
+                    <label><input type="radio" name="background" value="off"><span>off</span></label>
+                </div>
+            </fieldset>
+            <fieldset class="choices">
+                <legend class="field-label">animation</legend>
+                <div class="choice-list">
+                    <label><input type="radio" name="motion" value="full"><span>on</span></label>
+                    <label><input type="radio" name="motion" value="reduced"><span>reduced</span></label>
+                </div>
+            </fieldset>
+        </section>
+
+        <section class="card">
+            <div class="section-label">after logging in</div>
+            <div class="field">
+                <label for="landing">take me to</label>
+                <select id="landing" name="landing">
+                    <option value="home">home</option>
+                    <option value="directory">directory</option>
+                    <option value="tools">tools</option>
+                    <option value="startpage">startpage</option>
+                    <option value="profile">my profile</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-label">startpage</div>
+            <fieldset class="choices">
+                <legend class="field-label">clock</legend>
+                <div class="choice-list">
+                    <label><input type="radio" name="clock" value="12h"><span>12 hour</span></label>
+                    <label><input type="radio" name="clock" value="24h"><span>24 hour</span></label>
+                </div>
+            </fieldset>
+            <div class="toggle-row">
+                <input type="checkbox" id="clockSeconds" name="clockSeconds">
+                <label for="clockSeconds">show seconds</label>
+            </div>
+            <div class="toggle-row">
+                <input type="checkbox" id="suggestions" name="suggestions">
+                <label for="suggestions">show search suggestions</label>
+            </div>
+            <div class="field-label">your quick commands</div>
+            <div id="commands"></div>
+            <form class="command-add" id="command-form" novalidate>
+                <input type="text" id="command-key" placeholder="?wrk" maxlength="11" autocomplete="off" aria-label="command">
+                <input type="text" id="command-url" placeholder="wrk.money" autocomplete="off" aria-label="link it opens">
+                <button type="submit" class="btn">add</button>
+            </form>
+            <div class="hint">up to 12. using a built-in command like ?gh replaces it.</div>
+            <div class="error" id="command-error"></div>
+        </section>
+    </div>
+
+    <button type="button" class="btn btn-danger" id="reset">reset to default</button>
+</main>
+
+<script>
+    if (!localStorage.getItem('wrk_token')) goLogin();
+
+    const DEFAULTS = { theme: 'wrk', accent: null, background: 'network', motion: 'full', clock: '12h', clockSeconds: true, suggestions: true, landing: 'home', commands: [] };
+    const SAVE_DELAY = 700;
+
+    const form = document.getElementById('prefs');
+    const saveMsg = document.getElementById('save-msg');
+    const commandError = document.getElementById('command-error');
+    let prefs = sitePrefs();
+    let saveTimer = null;
+
+    // Redrawing the background is slow, so it only happens when its look changed.
+    const backgroundLook = () => JSON.stringify([prefs.theme, prefs.accent, prefs.background, prefs.motion]);
+    let drawnLook = backgroundLook();
+
+    function isLink(url) {
+        try {
+            return /^https?:$/.test(new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`).protocol);
+        } catch {
+            return false;
+        }
+    }
+
+    function showFields() {
+        const shown = { ...DEFAULTS, ...prefs };
+        for (const input of form.querySelectorAll('[name]')) {
+            if (input.type === 'radio') input.checked = input.value === shown[input.name];
+            else if (input.type === 'checkbox') input.checked = shown[input.name];
+            else if (input.type === 'color') input.value = shown.accent || getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+            else input.value = shown[input.name];
+        }
+        document.getElementById('accent-clear').hidden = !shown.accent;
+        showCommands();
+    }
+
+    function showCommands() {
+        document.getElementById('commands').replaceChildren(...(prefs.commands || []).map(command => {
+            const row = document.createElement('div');
+            row.className = 'command';
+            row.appendChild(document.createElement('b')).textContent = command.key;
+            row.appendChild(document.createElement('span')).textContent = command.url;
+            const remove = row.appendChild(document.createElement('button'));
+            remove.type = 'button';
+            remove.className = 'btn';
+            remove.textContent = 'remove';
+            remove.setAttribute('aria-label', `remove ${command.key}`);
+            remove.addEventListener('click', () => change({ commands: prefs.commands.filter(item => item !== command) }));
+            return row;
+        }));
+    }
+
+    function showMessage(text, type) {
+        saveMsg.textContent = text;
+        saveMsg.className = `save-msg ${type}`;
+    }
+
+    // Applies at once, then saves to the account when the changes settle.
+    function change(update) {
+        prefs = { ...prefs, ...update };
+        localStorage.setItem('wrk_prefs', JSON.stringify(prefs));
+        applyPrefs(prefs);
+        showFields();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, SAVE_DELAY);
+    }
+
+    async function save() {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        if (backgroundLook() !== drawnLook) {
+            drawnLook = backgroundLook();
+            restartNetwork();
+        }
+        const res = await fetch(`${SITE_API}/auth/prefs`, {
+            method: 'PUT',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('wrk_token')}` },
+            body: JSON.stringify(prefs),
+        }).catch(() => null);
+        if (res?.status === 401) return goLogin();
+        if (!res?.ok) return showMessage(res?.status === 429 ? 'too many changes, wait a minute' : "couldn't save", 'err');
+        showMessage('saved', 'ok');
+
+        // The worker tidies commands, so show its version unless more edits are waiting.
+        if (saveTimer) return;
+        prefs.commands = (await res.json()).commands;
+        localStorage.setItem('wrk_prefs', JSON.stringify(prefs));
+        showCommands();
+    }
+
+    form.addEventListener('input', ({ target }) => {
+        if (!target.name) return;
+        const value = target.type === 'checkbox' ? target.checked : target.value;
+        // A custom accent would hide the theme that was just picked.
+        change(target.name === 'theme' ? { theme: value, accent: null } : { [target.name]: value });
+    });
+
+    document.getElementById('accent-clear').addEventListener('click', () => change({ accent: null }));
+
+    document.getElementById('command-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const keyInput = document.getElementById('command-key');
+        const urlInput = document.getElementById('command-url');
+        const key = `?${keyInput.value.trim().toLowerCase().replace(/^\?/, '')}`;
+        const url = urlInput.value.trim();
+        const commands = (prefs.commands || []).filter(item => item.key !== key);
+
+        let problem = '';
+        if (!/^\?[a-z0-9]{1,10}$/.test(key)) problem = 'commands are up to 10 letters or numbers';
+        else if (!isLink(url)) problem = 'that link looks wrong';
+        else if (commands.length >= 12) problem = 'you can have up to 12 commands';
+        commandError.textContent = problem;
+        commandError.classList.toggle('visible', !!problem);
+        if (problem) return;
+
+        change({ commands: [...commands, { key, url }] });
+        keyInput.value = urlInput.value = '';
+        keyInput.focus();
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+        if (confirm('reset all of your site settings? your quick commands will be removed too.')) change(DEFAULTS);
+    });
+
+    // Don't lose a change made just before leaving.
+    window.addEventListener('pagehide', () => { if (saveTimer) save(); });
+
+    showFields();
+    siteUser().then(me => {
+        if (!me || saveTimer) return;
+        prefs = me.prefs || {};
+        showFields();
+    });
+</script>
+</body>
+</html>

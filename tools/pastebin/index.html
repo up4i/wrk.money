@@ -12,7 +12,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=2">
     <style>
         .container { position: relative; width: 100%; max-width: 720px; z-index: 1; }
         h1 { font-size: 2rem; font-weight: 700; letter-spacing: 0.5px; text-transform: lowercase; opacity: 0.9; margin-bottom: 2rem; }
@@ -22,7 +22,7 @@
         .bottom-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; flex-wrap: wrap; gap: 10px; }
         .char-count { font-size: 0.72rem; letter-spacing: 1px; color: var(--muted); }
         button { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 0.5px; text-transform: lowercase; padding: 10px 22px; border-radius: 8px; cursor: pointer; transition: all 0.2s; background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent); font-weight: 700; }
-        button:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 8px 26px -8px rgba(0, 255, 136, 0.7); }
+        button:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 8px 26px -8px rgba(var(--accent-rgb), 0.7); }
         .result-card { display: none; background: var(--glass); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 20px 24px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
         .result-card.visible { display: block; }
         .result-label { font-size: 0.72rem; letter-spacing: 0.5px; margin-bottom: 10px; color: var(--muted); }
@@ -36,7 +36,7 @@
     <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/pastebin');</script>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=2"></script>
+<script src="/wrk_files/site.js?v=3"></script>
 
 <div class="container">
     <a href="/tools" class="back-link">← tools</a>

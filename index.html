@@ -11,7 +11,7 @@
     <meta property="og:description" content="custom profiles, private tools and an ad-free startpage.">
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=2">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
     <style>
         .container { max-width: 860px; }
@@ -26,7 +26,7 @@
         .home-section { margin-bottom: 30px; }
 
         .welcome { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
-        .welcome img { width: 74px; height: 74px; border-radius: 16px; object-fit: cover; border: 2px solid var(--accent-line); box-shadow: 0 0 30px -8px rgba(0, 255, 136, 0.6); }
+        .welcome img { width: 74px; height: 74px; border-radius: 16px; object-fit: cover; border: 2px solid var(--accent-line); box-shadow: 0 0 30px -8px rgba(var(--accent-rgb), 0.6); }
         .welcome-link { color: var(--muted); font-size: 0.82rem; text-decoration: none; }
         .welcome-link:hover { color: var(--accent); }
 
@@ -39,13 +39,13 @@
         .invite a:hover { color: var(--accent); }
 
         .tile.made, .tile.made:hover { border-color: transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--gradient) border-box; }
-        .tile.made:hover { box-shadow: 0 12px 34px -14px rgba(133, 187, 101, 0.8); }
+        .tile.made:hover { box-shadow: 0 12px 34px -14px color-mix(in srgb, var(--gradient-end) 80%, transparent); }
         .section-label a { color: var(--accent); text-decoration: none; }
         .section-label a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=2"></script>
+<script src="/wrk_files/site.js?v=3"></script>
 
 <main class="container">
     <div id="home-guest" hidden>
