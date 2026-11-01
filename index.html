@@ -38,14 +38,8 @@
         .invite a { color: var(--text); }
         .invite a:hover { color: var(--accent); }
 
-        .feature { display: flex; align-items: center; gap: 16px; padding: 18px 20px; margin-bottom: 30px; color: var(--text); text-decoration: none; border: 1px solid transparent; border-radius: var(--radius); background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(95deg, var(--accent), var(--violet)) border-box; transition: transform 0.18s ease, box-shadow 0.18s ease; }
-        .feature:hover { transform: translateY(-2px); box-shadow: 0 12px 34px -14px rgba(139, 92, 255, 0.8); }
-        .feature-mark { color: var(--accent); font-size: 1.35rem; font-weight: 800; }
-        .feature-body { flex: 1; min-width: 0; }
-        .feature-name { display: block; font-size: 1rem; font-weight: 700; }
-        .feature-desc { display: block; color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
-        .feature-cta { flex-shrink: 0; color: var(--accent); font-size: 0.82rem; font-weight: 700; }
-        @media (max-width: 560px) { .feature { flex-wrap: wrap; } .feature-body { flex-basis: 70%; } .feature-cta { width: 100%; } }
+        .tile.made, .tile.made:hover { border-color: transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(95deg, var(--accent), var(--violet)) border-box; }
+        .tile.made:hover { box-shadow: 0 12px 34px -14px rgba(139, 92, 255, 0.8); }
     </style>
 </head>
 <body>
@@ -64,15 +58,6 @@
         </section>
 
         <section class="home-section">
-            <a href="https://juicewrldgrail.com" class="feature" target="_blank" rel="noopener">
-                <span class="feature-mark">999</span>
-                <span class="feature-body">
-                    <span class="feature-name">juice wrld grail</span>
-                    <span class="feature-desc">unofficial fan archive of released and unreleased songs and studio sessions, sorted by era. listen free.</span>
-                </span>
-                <span class="feature-cta">listen ↗</span>
-            </a>
-
             <span class="section-label">what's here</span>
             <div class="tile-grid">
                 <a href="/startpage" class="tile">
@@ -92,6 +77,24 @@
                     <span class="tile-name">tools</span>
                     <span class="tile-desc">pastebin, file share, short links, ip checker.</span>
                     <span class="tile-tag">members</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">things i made / help run</span>
+            <div class="tile-grid pairs">
+                <a href="https://juicewrldgrail.com" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">999</span>
+                    <span class="tile-name">juice wrld grail</span>
+                    <span class="tile-desc">unofficial fan archive of released and unreleased songs and studio sessions.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+                <a href="https://clue.tg" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">?</span>
+                    <span class="tile-name">clue.tg</span>
+                    <span class="tile-desc">telegram gift intelligence: search every collection, score gifts and track market caps.</span>
+                    <span class="tile-tag">↗</span>
                 </a>
             </div>
             <p class="invite">
@@ -116,15 +119,6 @@
         </div>
 
         <div class="card motd" id="motd"><b>motd</b><span id="motd-text"></span></div>
-
-        <a href="https://juicewrldgrail.com" class="feature" target="_blank" rel="noopener">
-            <span class="feature-mark">999</span>
-            <span class="feature-body">
-                <span class="feature-name">juice wrld grail</span>
-                <span class="feature-desc">unofficial fan archive of released and unreleased songs and studio sessions, sorted by era. listen free.</span>
-            </span>
-            <span class="feature-cta">listen ↗</span>
-        </a>
 
         <section class="home-section">
             <span class="section-label">tools</span>
@@ -164,6 +158,24 @@
                     <span class="tile-icon">/</span>
                     <span class="tile-name">startpage</span>
                     <span class="tile-desc">ad-free search with quick commands.</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">things i made / help run</span>
+            <div class="tile-grid pairs">
+                <a href="https://juicewrldgrail.com" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">999</span>
+                    <span class="tile-name">juice wrld grail</span>
+                    <span class="tile-desc">unofficial fan archive of released and unreleased songs and studio sessions.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+                <a href="https://clue.tg" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">?</span>
+                    <span class="tile-name">clue.tg</span>
+                    <span class="tile-desc">telegram gift intelligence: search every collection, score gifts and track market caps.</span>
+                    <span class="tile-tag">↗</span>
                 </a>
             </div>
         </section>
