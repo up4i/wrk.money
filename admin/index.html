@@ -18,18 +18,20 @@
         .msg.err { color: #ff6b6b; }
         .user-list { display: flex; flex-direction: column; gap: 8px; }
         .user-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; font-size: 0.75rem; }
-        .user-row > div:first-child { flex: 1; min-width: 0; }
+        .user-row > div:first-child { flex: 1 1 100%; min-width: 0; }
         .user-row .slug { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
         .user-row a { color: var(--muted); font-size: 0.72rem; text-decoration: none; letter-spacing: 1px; transition: opacity 0.2s; white-space: nowrap; }
         .user-row a:hover { color: #fff; }
         .badge-toggles { display: flex; gap: 4px; flex-wrap: wrap; }
-        .badge-toggle { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 1px; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
-        .badge-toggle:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); color: var(--muted); }
+        .badge-toggle, .code-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 1px; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .badge-toggle:hover:not(:disabled), .code-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); color: var(--muted); }
+        .code-out { flex-basis: 100%; color: var(--muted); font-size: 0.72rem; }
+        .code-out b { color: var(--accent); user-select: all; }
         .badge-toggle.active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.45); color: #fff; }
         .badge-toggle:disabled { opacity: 0.3; cursor: not-allowed; }
         .delete-btn { background: none; border: 1px solid rgba(255,80,80,0.2); color: rgba(255,100,100,0.4); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .delete-btn:hover { border-color: rgba(255,80,80,0.6); color: #ff6b6b; background: rgba(255,80,80,0.08); }
-        .uid-input { width: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 3px 6px; border-radius: 8px; text-align: center; }
+        input.uid-input { width: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 3px 6px; border-radius: 8px; text-align: center; }
         .uid-input:focus { outline: none; border-color: rgba(255,255,255,0.35); color: #fff; }
         .uid-input::placeholder { opacity: 0.4; }
         .empty { font-size: 0.72rem; letter-spacing: 1px; text-align: center; padding: 20px 0; color: var(--muted); }
@@ -71,7 +73,7 @@
                 <div class="hint">lowercase, letters/numbers/hyphens, min 3 chars</div>
             </div>
             <div class="field">
-                <label>password <span style="color:var(--muted)">(optional — user can set it themselves via /setup)</span></label>
+                <label>password <span style="color:var(--muted)">(optional — or leave blank and give them a code from the list below)</span></label>
                 <input type="password" id="reg-password" placeholder="leave blank for user to claim">
             </div>
             <div class="field">
@@ -112,17 +114,7 @@
         try {
             const res = await apiCall('/admin/users');
             if (!res.ok) { listEl.innerHTML = '<div class="empty">failed to load</div>'; return; }
-            const users = await res.json();
-            if (!users.length) { listEl.innerHTML = '<div class="empty">no accounts yet</div>'; return; }
-            listEl.innerHTML = users.map(u => `
-                <div class="user-row">
-                    <div>
-                        <div>${esc(u.username)}</div>
-                        <div class="slug">wrk.money/${esc(u.slug)}</div>
-                    </div>
-                    <a href="https://wrk.money/${esc(u.slug)}" target="_blank">view →</a>
-                </div>
-            `).join('');
+            renderUsers(await res.json());
         } catch { listEl.innerHTML = '<div class="empty">error loading users</div>'; }
     }
 
@@ -163,6 +155,7 @@
                     <button class="badge-toggle${badges.includes('developer') ? ' active' : ''}" data-badge="developer" data-slug="${esc(u.slug)}">dev</button>
                 </div>
                 <a href="https://wrk.money/${esc(u.slug)}" target="_blank">view →</a>
+                <button class="code-btn" data-name="${esc(u.username)}" title="make a one-time code to claim or reset this account">code</button>
                 <button class="delete-btn" data-slug="${esc(u.slug)}" data-name="${esc(u.username)}">del</button>
             </div>`;
         }).join('');
@@ -185,6 +178,25 @@
             }
         } catch {
             btn.disabled = false; btn.textContent = 'del';
+        }
+    });
+
+    document.getElementById('user-list').addEventListener('click', async e => {
+        const btn = e.target.closest('.code-btn');
+        if (!btn) return;
+        const row = btn.closest('.user-row');
+        btn.disabled = true;
+        try {
+            const res = await apiCall('/admin/code', { method: 'POST', body: JSON.stringify({ username: btn.dataset.name }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'failed');
+            const out = row.querySelector('.code-out') || row.appendChild(document.createElement('div'));
+            out.className = 'code-out';
+            out.innerHTML = `<b>${esc(data.code)}</b> · works once, for 1 hour · they enter it at wrk.money/setup`;
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            btn.disabled = false;
         }
     });
 

@@ -144,6 +144,101 @@ const realFetch = globalThis.fetch;
   assert.equal((await post(env, '/auth/login', { username: 'fresh', password: 'longenough' })).status, 200);
 }
 
+// Claiming and resetting both need a one-time code from the admin.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  await post(env, '/auth/register', { username: 'fresh' }, admin);
+  const newCode = async username => (await (await post(env, '/admin/code', { username }, admin)).json()).code;
+  const setup = body => post(env, '/auth/setup', body);
+  const logIn = password => post(env, '/auth/login', { username: 'fresh', password });
+  const me = token => call(env, 'https://api.wrk.money/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+
+  assert.equal((await setup({ slug: 'fresh', password: 'longenough' })).status, 400, 'the old open claim is gone');
+  assert.equal((await setup({ username: 'fresh', password: 'longenough' })).status, 400);
+  assert.equal(JSON.parse(env.store.get('user:fresh')).passwordHash, null);
+
+  assert.equal((await post(env, '/admin/code', { username: 'fresh' })).status, 403);
+  assert.equal((await post(env, '/admin/code', { username: 'fresh' }, { Authorization: 'Bearer nope' })).status, 403);
+  assert.equal((await post(env, '/admin/code', { username: 'nobody' }, admin)).status, 404);
+
+  const first = await newCode('fresh');
+  assert.match(first, /^[A-HJKMNP-Z2-9]{5}-[A-HJKMNP-Z2-9]{5}$/);
+  assert.ok(!env.store.get('code:fresh').includes(first.replace('-', '')), 'codes are stored hashed');
+
+  const wrong = await setup({ username: 'fresh', code: 'AAAAA-AAAAA', password: 'longenough' });
+  const unknown = await setup({ username: 'nobody', code: first, password: 'longenough' });
+  assert.equal(wrong.status, 401);
+  assert.equal(unknown.status, 401);
+  assert.deepEqual(await wrong.json(), await unknown.json(), 'a stranger learns nothing about which part failed');
+
+  assert.equal((await setup({ username: 'fresh', code: first, password: 'short' })).status, 400);
+  assert.equal((await setup({ username: 'fresh', code: first, password: 12345678 })).status, 400);
+
+  const claimed = await setup({ username: ' Fresh ', code: first.toLowerCase().replace('-', ' '), password: 'first password' });
+  assert.equal(claimed.status, 200);
+  assert.equal((await claimed.json()).firstTime, true);
+  assert.equal(env.store.has('code:fresh'), false, 'a used code is gone');
+  assert.equal(env.store.has('revoked:fresh'), false, 'claiming has no old sessions to end');
+  assert.equal((await setup({ username: 'fresh', code: first, password: 'stolen password' })).status, 401, 'a code works once');
+
+  const oldToken = (await (await logIn('first password')).json()).token;
+  assert.equal((await me(oldToken)).status, 200);
+  const realNow = Date.now;
+  Date.now = () => realNow() + 5000;
+
+  const reset = await setup({ username: 'fresh', code: await newCode('fresh'), password: 'second password' });
+  assert.equal(reset.status, 200);
+  const { token: newToken, firstTime } = await reset.json();
+  assert.equal(firstTime, false);
+  assert.match(JSON.parse(env.store.get('user:fresh')).passwordHash, /^pbkdf2\$/);
+  assert.equal((await logIn('first password')).status, 401);
+  assert.equal((await logIn('second password')).status, 200);
+  assert.equal((await me(oldToken)).status, 401, 'a reset ends older sessions');
+  assert.equal((await me(newToken)).status, 200);
+  Date.now = realNow;
+}
+
+// Wrong tries and time both end a code, and a new code replaces the old one.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  await post(env, '/auth/register', { username: 'fresh' }, admin);
+  const newCode = async () => (await (await post(env, '/admin/code', { username: 'fresh' }, admin)).json()).code;
+  const setup = code => post(env, '/auth/setup', { username: 'fresh', code, password: 'longenough' });
+
+  const code = await newCode();
+  for (let i = 0; i < 4; i++) assert.equal((await setup('AAAAA-AAAAA')).status, 401);
+  assert.ok(env.store.has('code:fresh'));
+  assert.equal((await setup('AAAAA-AAAAA')).status, 401);
+  assert.equal(env.store.has('code:fresh'), false);
+  assert.equal((await setup(code)).status, 401, 'the right code is dead after too many tries');
+
+  const late = await newCode();
+  env.store.set('code:fresh', JSON.stringify({ ...JSON.parse(env.store.get('code:fresh')), expires: Date.now() - 1 }));
+  assert.equal((await setup(late)).status, 401);
+
+  const replaced = await newCode();
+  await newCode();
+  assert.equal((await setup(replaced)).status, 401);
+  assert.equal(JSON.parse(env.store.get('user:fresh')).passwordHash, null);
+}
+
+// A name stored with capitals can claim and log in, and deleting an account ends its code.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  env.WRK_KV.list = async () => ({ keys: [...env.store.keys()].filter(k => k.startsWith('user:')).map(name => ({ name })) });
+  await post(env, '/auth/register', { username: 'MixedCase', slug: 'mixed' }, admin);
+  const { code } = await (await post(env, '/admin/code', { username: 'MixedCase' }, admin)).json();
+  assert.equal((await post(env, '/auth/setup', { username: 'MixedCase', code, password: 'longenough' })).status, 200);
+  assert.equal((await post(env, '/auth/login', { username: 'MixedCase', password: 'longenough' })).status, 200);
+
+  await post(env, '/admin/code', { username: 'MixedCase' }, admin);
+  await call(env, 'https://api.wrk.money/admin/user/mixed', { method: 'DELETE', headers: admin });
+  assert.equal(env.store.has('code:mixed'), false);
+}
+
 // Gift links are normalised, fake ones rejected, and outages don't block saves.
 {
   const profile = { slug: 'foo', tgGiftUrl: 'https://t.me/nft/ScaredCat-845' };
