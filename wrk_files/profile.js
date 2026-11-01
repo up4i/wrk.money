@@ -9,6 +9,12 @@ const PROFILE_FONTS = {
 
 const isProfileColor = value => /^#[0-9a-fA-F]{6}$/.test(value);
 
+function formatAka(names) {
+    const list = (names || []).filter(Boolean);
+    if (list.length < 2) return list.length ? `aka ${list[0]}` : '';
+    return `aka ${list.slice(0, -1).join(', ')}${list.length > 2 ? ',' : ''} & ${list.at(-1)}`;
+}
+
 function profileCss(p, root = ':root') {
     const css = [];
     const cards = 'header,.audio-box,.hub-btn';
@@ -61,12 +67,16 @@ function applyProfile(p) {
     style.textContent = profileCss(p);
     document.head.appendChild(style);
 
-    if (p.status) {
-        const status = document.createElement('div');
-        status.className = 'profile-status';
-        status.textContent = p.status;
-        document.querySelector('.name-row').after(status);
-    }
+    // Added in reverse so the akas end up directly under the name, above the status.
+    const addUnderName = (className, text) => {
+        if (!text) return;
+        const line = document.createElement('div');
+        line.className = className;
+        line.textContent = text;
+        document.querySelector('.name-row').after(line);
+    };
+    addUnderName('profile-status', p.status);
+    addUnderName('profile-aka', formatAka(p.aka));
 
     const prompt = document.querySelector('.enter-text');
     if (prompt) {

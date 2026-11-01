@@ -210,6 +210,13 @@ globalThis.fetch = realFetch;
   assert.equal(good.bgOpacity, 100);
   assert.equal(good.musicVolume, 0);
 
+  const named = await save({ aka: [' wrk ', '', 7, 'z'.repeat(40), ...Array(20).fill('x')] });
+  assert.equal(named.aka[0], 'wrk');
+  assert.equal(named.aka[1].length, 24);
+  assert.equal(named.aka.length, 12);
+  assert.equal((await save({})).aka.length, 12, 'older clients keep saved akas');
+  assert.equal((await save({ aka: [] })).aka.length, 0, 'akas can be cleared');
+
   const bad = await save({ avatarShape: 'url(evil)', font: 'x}body{display:none', nameEffect: 'nope', nameColor: 'red;}body{display:none', bgOpacity: 'lots', status: null });
   assert.equal(bad.avatarShape, 'rounded', 'unknown choices keep the saved one');
   assert.equal(bad.font, 'pixel');
@@ -223,6 +230,11 @@ globalThis.fetch = realFetch;
 {
   const page = {};
   vm.runInNewContext(read('../wrk_files/profile.js'), page);
+  assert.equal(page.formatAka(['a']), 'aka a');
+  assert.equal(page.formatAka(['a', 'b']), 'aka a & b');
+  assert.equal(page.formatAka(['a', 'b', 'c']), 'aka a, b, & c');
+  assert.equal(page.formatAka([]), '');
+  assert.equal(page.formatAka(undefined), '');
   const clean = page.profileCss({});
   assert.ok(clean.includes('--profile-accent:#ffffff'));
   const hostile = page.profileCss({ avatarShape: 'x}body{display:none', font: 'x}body{display:none', accentColor: '#000}body{display:none', nameColor: 'red}', corners: '1px;}', bgOpacity: '1}' });

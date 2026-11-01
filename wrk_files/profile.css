@@ -21,6 +21,7 @@ header {
 .name-row { gap: 10px; }
 .name-row h1 { font-weight: 800; letter-spacing: -0.5px; opacity: 1; }
 
+.profile-aka { margin-top: 4px; color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; line-height: 1.45; overflow-wrap: anywhere; }
 .profile-status { margin-top: 6px; color: rgba(255, 255, 255, 0.8); font-size: 0.86rem; overflow-wrap: anywhere; }
 .uid-label { margin-top: 6px; font-size: 0.7rem; letter-spacing: 1px; opacity: 0.55; }
 .typewriter-container { margin-top: 12px; color: rgba(255, 255, 255, 0.78); font-size: 0.88rem; }
