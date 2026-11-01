@@ -34,6 +34,14 @@
         .bg-option-name { font-size: 0.85rem; font-weight: 700; margin-bottom: 5px; text-transform: lowercase; }
         .bg-option-desc { font-size: 0.74rem; line-height: 1.4; color: var(--muted); }
         .bg-option-desc a { color: var(--accent); }
+        .look-layout { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 20px; align-items: start; }
+        #look-preview { position: sticky; top: 130px; }
+        .look-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+        .look-fields .wide { grid-column: 1 / -1; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        input[type="color"] { width: 38px; height: 38px; padding: 2px; background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+        .color-row { display: flex; align-items: center; gap: 12px; }
+        @media (max-width: 640px) { .look-layout { grid-template-columns: 1fr; } #look-preview { position: static; } }
         .bio-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
         .bio-row { display: flex; gap: 8px; align-items: center; }
         .bio-row input { flex: 1; }
@@ -74,6 +82,7 @@
     <nav class="jump-nav" aria-label="profile sections">
         <a href="#s-profile">profile</a>
         <a href="#s-background">background</a>
+        <a href="#s-look">look</a>
         <a href="#s-embed">embed</a>
         <a href="#s-music">music</a>
         <a href="#s-gift">gift</a>
@@ -88,6 +97,10 @@
         <div class="field">
             <label>display name <span style="color:#ff6b6b;opacity:0.6">*</span></label>
             <input type="text" id="displayName" placeholder="your name" maxlength="50">
+        </div>
+        <div class="field">
+            <label for="profileStatus">status <span style="color:var(--muted)">(optional · a short line under your name)</span></label>
+            <input type="text" id="profileStatus" placeholder="what are you up to?" maxlength="60">
         </div>
         <div class="field">
             <label>profile picture <span style="color:#ff6b6b;opacity:0.6">*</span></label>
@@ -147,7 +160,10 @@
             <div id="bg-preview-wrap" style="display:none;margin-top:10px">
                 <img id="bg-preview-img" style="max-width:100%;max-height:110px;border-radius:4px;border:1px solid var(--border);display:none" alt="bg preview">
                 <video id="bg-preview-video" style="max-width:100%;max-height:110px;border-radius:4px;border:1px solid var(--border);display:none" muted loop autoplay playsinline></video>
-                <br>
+                <div class="field" style="margin-top:12px;margin-bottom:0">
+                    <label for="bgOpacity">background strength</label>
+                    <input type="range" id="bgOpacity" min="10" max="100" step="5" value="50">
+                </div>
                 <button class="btn" id="bg-clear-btn" style="margin-top:8px;font-size:0.72rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear custom background</button>
             </div>
             <input type="hidden" id="bgUrl">
@@ -160,6 +176,84 @@
                 <input type="color" id="accentColor" value="#7f5af0" style="width:38px;height:38px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;padding:2px">
                 <button class="btn" id="accent-clear-btn" style="font-size:0.72rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear tint</button>
                 <span id="accent-status" style="font-size:0.72rem;color:var(--muted)"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Look -->
+    <div class="card" id="s-look">
+        <div class="section-title">look <span style="color:var(--muted)">(the preview updates as you go)</span></div>
+        <div class="look-layout">
+            <div id="look-preview"></div>
+            <div class="look-fields">
+                <div class="field">
+                    <label for="avatarShape">avatar shape</label>
+                    <select id="avatarShape">
+                        <option value="rounded">rounded</option>
+                        <option value="square">square</option>
+                        <option value="circle">circle</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="corners">corners</label>
+                    <select id="corners">
+                        <option value="soft">soft</option>
+                        <option value="sharp">sharp</option>
+                        <option value="round">round</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="cardStyle">cards</label>
+                    <select id="cardStyle">
+                        <option value="glass">glass</option>
+                        <option value="solid">solid</option>
+                        <option value="clear">clear</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="buttonStyle">buttons</label>
+                    <select id="buttonStyle">
+                        <option value="glass">glass</option>
+                        <option value="outline">outline</option>
+                        <option value="solid">solid color</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="font">font</label>
+                    <select id="font">
+                        <option value="mono">mono</option>
+                        <option value="sans">sans</option>
+                        <option value="serif">serif</option>
+                        <option value="pixel">pixel</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="nameEffect">name effect</label>
+                    <select id="nameEffect">
+                        <option value="none">none</option>
+                        <option value="glow">glow</option>
+                        <option value="money">money gradient</option>
+                    </select>
+                </div>
+                <div class="field wide">
+                    <label for="nameColor">name color</label>
+                    <div class="color-row">
+                        <input type="color" id="nameColor" value="#ffffff">
+                        <button class="btn" id="name-color-clear" type="button">use default</button>
+                    </div>
+                </div>
+                <div class="field wide">
+                    <label for="enterText">enter screen text</label>
+                    <input type="text" id="enterText" placeholder="[ click to enter ]" maxlength="30">
+                </div>
+                <div class="toggle-row wide">
+                    <input type="checkbox" id="hideVisits">
+                    <label for="hideVisits">hide visit count</label>
+                </div>
+                <div class="toggle-row wide">
+                    <input type="checkbox" id="hideUid">
+                    <label for="hideUid">hide uid</label>
+                </div>
             </div>
         </div>
     </div>
@@ -206,6 +300,10 @@
             <div class="field">
                 <label>track name</label>
                 <input type="text" id="musicTitle" placeholder="shown in the player on your profile" maxlength="80">
+            </div>
+            <div class="field">
+                <label for="musicVolume">starting volume</label>
+                <input type="range" id="musicVolume" min="0" max="100" step="5" value="25">
             </div>
         </div>
     </div>
@@ -258,6 +356,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=4"></script>
+<script src="/wrk_files/profile.js?v=1"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -560,8 +659,68 @@
             ogDescription: document.getElementById('ogDescription').value.trim() || null,
             ogImage: document.getElementById('ogImage').value.trim() || null,
             tgGiftUrl: document.getElementById('tgGiftUrl').value.trim() || null,
+            status: document.getElementById('profileStatus').value.trim(),
+            enterText: document.getElementById('enterText').value.trim(),
+            avatarShape: document.getElementById('avatarShape').value,
+            corners: document.getElementById('corners').value,
+            cardStyle: document.getElementById('cardStyle').value,
+            buttonStyle: document.getElementById('buttonStyle').value,
+            font: document.getElementById('font').value,
+            nameEffect: document.getElementById('nameEffect').value,
+            nameColor: nameColorEnabled ? document.getElementById('nameColor').value : null,
+            hideVisits: document.getElementById('hideVisits').checked,
+            hideUid: document.getElementById('hideUid').checked,
+            bgOpacity: Number(document.getElementById('bgOpacity').value),
+            musicVolume: Number(document.getElementById('musicVolume').value),
         };
     }
+
+    // ── Live preview ──────────────────────────────────────────────────────────
+
+    // A shadow root keeps the profile's styles from touching this page, and the reverse.
+    const lookPreview = document.getElementById('look-preview').attachShadow({ mode: 'open' });
+    lookPreview.innerHTML = `
+        <link rel="stylesheet" href="/wrk_files/profile.css?v=1">
+        <style>
+            :host { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); display: block; color: #fff; font-family: 'JetBrains Mono', monospace; }
+            * { box-sizing: border-box; margin: 0; }
+            header { margin-bottom: 10px; padding: 22px 14px 14px; background: var(--glass); border: 1px solid var(--border); text-align: center; backdrop-filter: blur(8px); }
+            .pfp { display: block; width: 84px; height: 84px; margin: 0 auto 10px; object-fit: cover; border: 1px solid var(--border); }
+            .name-row { display: flex; justify-content: center; }
+            h1 { font-size: 1.35rem; text-transform: lowercase; overflow-wrap: anywhere; }
+            .visit-count { text-align: right; }
+            .hub-btn { display: flex; justify-content: center; padding: 13px; background: var(--glass); border: 1px solid var(--border); color: #fff; text-decoration: none; }
+        </style>
+        <style id="live"></style>
+        <header>
+            <img class="pfp" alt="">
+            <div class="name-row"><h1></h1></div>
+            <div class="profile-status"></div>
+            <div class="uid-label">UID #0</div>
+            <div class="visit-count">123 visits</div>
+        </header>
+        <a class="hub-btn">example link</a>
+    `;
+
+    function updateLookPreview() {
+        const p = collectProfile();
+        loadProfileFont(p);
+        lookPreview.getElementById('live').textContent = profileCss(p, ':host');
+        lookPreview.querySelector('.pfp').src = p.avatar || '/wrk_files/999circle.png';
+        lookPreview.querySelector('h1').textContent = p.displayName || 'your name';
+        lookPreview.querySelector('.profile-status').textContent = p.status;
+    }
+
+    let nameColorEnabled = false;
+    document.getElementById('nameColor').addEventListener('input', () => { nameColorEnabled = true; });
+    document.getElementById('name-color-clear').addEventListener('click', () => {
+        nameColorEnabled = false;
+        document.getElementById('nameColor').value = '#ffffff';
+    });
+
+    const form = document.querySelector('.container');
+    form.addEventListener('input', updateLookPreview);
+    form.addEventListener('click', updateLookPreview);
 
     // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -645,6 +804,17 @@
             document.getElementById('ogDescription').value = profile.ogDescription || '';
             document.getElementById('ogImage').value = profile.ogImage || '';
 
+            document.getElementById('profileStatus').value = profile.status || '';
+            document.getElementById('enterText').value = profile.enterText || '';
+            for (const id of ['avatarShape', 'corners', 'cardStyle', 'buttonStyle', 'font', 'nameEffect', 'bgOpacity', 'musicVolume'])
+                if (profile[id] !== undefined && profile[id] !== null) document.getElementById(id).value = profile[id];
+            document.getElementById('hideVisits').checked = !!profile.hideVisits;
+            document.getElementById('hideUid').checked = !!profile.hideUid;
+            if (profile.nameColor) {
+                nameColorEnabled = true;
+                document.getElementById('nameColor').value = profile.nameColor;
+            }
+
             if (profile.tgGiftUrl) {
                 document.getElementById('tgGiftUrl').value = profile.tgGiftUrl;
                 updateGiftPreview(profile.tgGiftUrl);
@@ -652,6 +822,7 @@
 
             (profile.bioStatements || []).forEach(s => addBioRow(s));
             (profile.tabs || []).forEach(t => addTabCard(t));
+            updateLookPreview();
             savedState = JSON.stringify(collectProfile());
         } catch { showMsg('could not load your profile, try refreshing', 'err'); }
     }

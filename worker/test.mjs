@@ -178,6 +178,55 @@ const realFetch = globalThis.fetch;
 
 globalThis.fetch = realFetch;
 
+// Appearance options keep good values and refuse anything else.
+{
+  const env = makeEnv({
+    'user:foo': JSON.stringify({ username: 'foo', slug: 'foo', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }),
+    'profile:foo': JSON.stringify({ slug: 'foo', avatarShape: 'circle', status: 'kept' }),
+  });
+  const { token } = await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json();
+  const save = async fields => (await call(env, 'https://api.wrk.money/profile/foo', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ displayName: 'foo', avatar: 'a.png', bioStatements: ['hi'], ...fields }),
+  })).json();
+
+  const untouched = await save({});
+  assert.equal(untouched.avatarShape, 'circle', 'older clients keep saved options');
+  assert.equal(untouched.status, 'kept');
+
+  const good = await save({ avatarShape: 'rounded', corners: 'round', cardStyle: 'clear', buttonStyle: 'solid', font: 'pixel', nameEffect: 'money', nameColor: '#85bb65', status: 'x'.repeat(90), enterText: 'y'.repeat(90), hideVisits: true, hideUid: 1, bgOpacity: 140, musicVolume: -5 });
+  assert.equal(good.avatarShape, 'rounded');
+  assert.equal(good.font, 'pixel');
+  assert.equal(good.nameColor, '#85bb65');
+  assert.equal(good.status.length, 60);
+  assert.equal(good.enterText.length, 30);
+  assert.equal(good.hideUid, true);
+  assert.equal(good.bgOpacity, 100);
+  assert.equal(good.musicVolume, 0);
+
+  const bad = await save({ avatarShape: 'url(evil)', font: 'x}body{display:none', nameEffect: 'nope', nameColor: 'red;}body{display:none', bgOpacity: 'lots', status: null });
+  assert.equal(bad.avatarShape, 'rounded', 'unknown choices keep the saved one');
+  assert.equal(bad.font, 'pixel');
+  assert.equal(bad.nameEffect, 'money');
+  assert.equal(bad.nameColor, null);
+  assert.equal(bad.bgOpacity, 100);
+  assert.equal(bad.status, '');
+}
+
+// Profile styles only ever contain known values, even from a tampered profile.
+{
+  const page = {};
+  vm.runInNewContext(read('../wrk_files/profile.js'), page);
+  const clean = page.profileCss({});
+  assert.ok(clean.includes('--profile-accent:#ffffff'));
+  const hostile = page.profileCss({ avatarShape: 'x}body{display:none', font: 'x}body{display:none', accentColor: '#000}body{display:none', nameColor: 'red}', corners: '1px;}', bgOpacity: '1}' });
+  assert.equal(hostile, clean);
+  assert.ok(page.profileCss({ bgOpacity: 250 }).includes('#bg-media{opacity:1}'));
+  assert.ok(page.profileCss({ accentColor: '#ff0000', buttonStyle: 'solid' }).includes('color:#ffffff'), 'dark buttons get light text');
+  assert.ok(page.profileCss({ accentColor: '#85bb65', buttonStyle: 'solid' }).includes('color:#08090c'), 'light buttons get dark text');
+}
+
 // The shared browser script accepts what the worker accepts.
 {
   const page = {};
