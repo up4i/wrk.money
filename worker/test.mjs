@@ -199,4 +199,13 @@ globalThis.fetch = realFetch;
   assert.throws(() => page.giftModelOnly({ layers: [{ nm: 'Background' }] }));
 }
 
+// Login only sends people to same-site paths: a javascript: link would run with their token.
+{
+  const rule = eval(read('../login/index.html').match(/const _redirectTo = (\/\^.*?\/)\.test\(_from\)/)[1]);
+  for (const safe of ['/tools', '/tools/pastebin', '/settings', '/$'])
+    assert.ok(rule.test(safe), safe);
+  for (const bad of ['', 'javascript:alert(1)', 'JaVaScRiPt:alert(1)', ' javascript:alert(1)', '//evil.example', '/\\evil.example', 'https://evil.example', 'data:text/html,x'])
+    assert.ok(!rule.test(bad), bad);
+}
+
 console.log('all checks passed');

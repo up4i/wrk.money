@@ -3,120 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>settings | wrk.money</title>
-    <meta name="theme-color" content="#0a0a0a">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>edit profile | wrk.money</title>
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
     <style>
-        :root { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'JetBrains Mono', monospace; }
-        body { background: #0a0a0a; min-height: 100vh; color: #fff; padding: 60px 20px 100px; }
-        #tsparticles { position: fixed; inset: 0; z-index: 0; }
-        .container { position: relative; z-index: 1; width: 100%; max-width: 620px; margin: 0 auto; }
-        .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 10px; }
-        h1 { font-size: 2rem; font-weight: 700; letter-spacing: 4px; text-transform: lowercase; opacity: 0.9; }
-        .top-actions { display: flex; gap: 8px; }
-        .card { background: var(--glass); border: 1px solid var(--border); border-radius: 4px; padding: 24px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); margin-bottom: 14px; }
-        .section-title { font-size: 0.6rem; opacity: 0.3; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px; }
-        .field { margin-bottom: 14px; }
-        .field label { display: block; font-size: 0.6rem; opacity: 0.3; letter-spacing: 2px; margin-bottom: 7px; }
-        input[type="text"], input[type="url"], textarea {
-            width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-            border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem; padding: 10px 13px; outline: none; transition: border-color 0.2s;
-        }
-        input:focus, textarea:focus { border-color: rgba(255,255,255,0.35); }
-        input::placeholder, textarea::placeholder { opacity: 0.2; }
-        .hint { font-size: 0.58rem; opacity: 0.2; letter-spacing: 1px; margin-top: 5px; }
-        .btn {
-            background: rgba(255,255,255,0.06); border: 1px solid var(--border);
-            color: #fff; font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem; letter-spacing: 2px; text-transform: lowercase;
-            padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s;
-        }
-        .btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); }
-        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .btn-danger { border-color: rgba(255,80,80,0.3); color: rgba(255,120,120,0.8); }
-        .btn-danger:hover { background: rgba(255,80,80,0.1) !important; border-color: rgba(255,80,80,0.6) !important; color: #ff8080 !important; }
-        .btn-primary { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); font-size: 0.7rem; padding: 10px 22px; }
-        .btn-primary:hover { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.6) !important; }
-
-        /* Avatar */
-        .pfp-preview { width: 80px; height: 80px; border-radius: 4px; border: 1px solid var(--border); object-fit: cover; margin-bottom: 10px; display: none; }
+        .container { max-width: 720px; }
+        body { padding-bottom: 110px; }
+        .card { scroll-margin-top: 130px; }
+        .jump-nav { position: sticky; top: calc(var(--nav-height) + 8px); z-index: 20; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 6px; margin-bottom: 16px; background: rgba(16, 19, 26, 0.86); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+        .jump-nav::-webkit-scrollbar { display: none; }
+        .jump-nav a { flex-shrink: 0; padding: 6px 11px; border-radius: 7px; color: var(--muted); font-size: 0.75rem; font-weight: 700; text-decoration: none; }
+        .jump-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+        .pfp-preview { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; margin-bottom: 10px; display: none; }
         .upload-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .upload-status { font-size: 0.6rem; opacity: 0.35; letter-spacing: 1px; }
+        .upload-status { font-size: 0.72rem; letter-spacing: 1px; color: var(--muted); }
         .upload-progress { display: none; margin-bottom: 8px; }
-        .upload-progress-bar { height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-        .upload-progress-fill { height: 100%; background: rgba(255,255,255,0.5); width: 0%; transition: width 0.2s; }
-        .upload-progress-label { font-size: 0.58rem; opacity: 0.25; letter-spacing: 1px; margin-top: 4px; text-align: center; }
-        .url-fallback label { font-size: 0.55rem; opacity: 0.2; letter-spacing: 1px; margin-bottom: 5px; }
-
-        /* Music toggle */
+        .upload-progress-bar { height: 2px; background: rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden; }
+        .upload-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s; }
+        .upload-progress-label { font-size: 0.72rem; letter-spacing: 1px; margin-top: 4px; text-align: center; color: var(--muted); }
+        .url-fallback label { font-size: 0.72rem; letter-spacing: 1px; margin-bottom: 5px; color: var(--muted); }
         .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-        .toggle-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: #fff; cursor: pointer; flex-shrink: 0; }
-        .toggle-row label { font-size: 0.65rem; opacity: 0.4; letter-spacing: 1px; cursor: pointer; margin: 0; }
-
-        /* Background selector */
+        .toggle-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+        .toggle-row label { font-size: 0.82rem; cursor: pointer; margin: 0; }
         .bg-grid { display: flex; gap: 10px; flex-wrap: wrap; }
-        .bg-option {
-            flex: 1; min-width: 180px; padding: 14px 16px;
-            background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-            border-radius: 4px; cursor: pointer; transition: all 0.2s; user-select: none;
-        }
-        .bg-option:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.04); }
-        .bg-option.selected { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.06); }
-        .bg-option-name { font-size: 0.75rem; letter-spacing: 1px; margin-bottom: 5px; text-transform: lowercase; }
-        .bg-option-desc { font-size: 0.58rem; opacity: 0.3; letter-spacing: 1px; line-height: 1.4; }
-
-        /* Bio statements */
+        .bg-option { flex: 1; min-width: 180px; padding: 14px 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; user-select: none; }
+        .bg-option:hover { border-color: var(--accent-line); background: var(--glass-hover); }
+        .bg-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+        .bg-option-name { font-size: 0.85rem; font-weight: 700; margin-bottom: 5px; text-transform: lowercase; }
+        .bg-option-desc { font-size: 0.74rem; line-height: 1.4; color: var(--muted); }
         .bio-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
         .bio-row { display: flex; gap: 8px; align-items: center; }
         .bio-row input { flex: 1; }
-        .remove-btn { flex-shrink: 0; background: none; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); font-size: 0.7rem; padding: 9px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .remove-btn { flex-shrink: 0; background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-size: 0.72rem; padding: 9px 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .remove-btn:hover { border-color: rgba(255,80,80,0.5); color: #ff8080; }
-
-        /* Tabs */
         .tabs-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 10px; }
-        .tab-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 4px; padding: 16px; }
+        .tab-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
         .tab-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .tab-header input { flex: 1; }
         .buttons-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
         .btn-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .btn-row input { flex: 1; min-width: 80px; }
-        .btn-row select { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; padding: 9px 10px; border-radius: 4px; outline: none; cursor: pointer; }
-        .btn-row select option { background: #111; }
+        .btn-row select { width: auto; cursor: pointer; }
         .btn-row .url-input { flex: 2; }
-
-        /* Save bar */
-        .save-bar {
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: rgba(10,10,10,0.95); border-top: 1px solid var(--border);
-            padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
-            z-index: 10; backdrop-filter: blur(12px); flex-wrap: wrap; gap: 10px;
-        }
-        .save-msg { font-size: 0.65rem; letter-spacing: 1px; opacity: 0; transition: opacity 0.3s; }
-        .save-msg.ok { color: #6bff9e; opacity: 1; }
-        .save-msg.err { color: #ff6b6b; opacity: 1; }
+        .save-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(6, 7, 11, 0.92); border-top: 1px solid var(--border); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; backdrop-filter: blur(12px); flex-wrap: wrap; gap: 10px; }
+        .save-msg { font-size: 0.8rem; opacity: 0; transition: opacity 0.3s; }
+        .save-msg.ok { color: var(--accent); opacity: 1; }
+        .save-msg.err { color: var(--danger); opacity: 1; }
         .save-actions { display: flex; gap: 8px; align-items: center; }
+        @media (max-width: 640px) { body { padding-bottom: 170px; } .save-bar { bottom: calc(62px + env(safe-area-inset-bottom)); padding: 10px 16px; } }
     </style>
 </head>
 <body>
-<div id="tsparticles"></div>
+<script src="/wrk_files/site.js?v=1"></script>
 <div class="container">
-    <div class="top-row">
+    <div class="page-head">
         <div>
-            <h1>settings</h1>
-            <div id="uid-display" style="font-size:0.55rem;opacity:0.25;letter-spacing:3px;margin-top:4px;"></div>
+            <h1>edit profile</h1>
+            <p class="page-sub" id="uid-display"></p>
         </div>
-        <div class="top-actions">
-            <a href="/" class="btn">← home</a>
-            <a id="preview-link" href="#" target="_blank" class="btn">preview ↗</a>
-            <button class="btn btn-danger" id="logout-btn">logout</button>
+        <div class="page-actions">
+            <a id="preview-link" href="#" target="_blank" class="btn">view profile ↗</a>
         </div>
     </div>
 
+    <div class="notice" id="welcome" hidden>welcome to wrk.money. add a name, a picture and a bio, then hit save.</div>
+
+    <nav class="jump-nav" aria-label="profile sections">
+        <a href="#s-profile">profile</a>
+        <a href="#s-background">background</a>
+        <a href="#s-embed">embed</a>
+        <a href="#s-music">music</a>
+        <a href="#s-gift">gift</a>
+        <a href="#s-bio">bio</a>
+        <a href="#s-links">links</a>
+        <a href="#s-footer">footer</a>
+    </nav>
+
     <!-- Profile basics -->
-    <div class="card">
+    <div class="card" id="s-profile">
         <div class="section-title">profile</div>
         <div class="field">
             <label>display name <span style="color:#ff6b6b;opacity:0.6">*</span></label>
@@ -141,7 +107,7 @@
     </div>
 
     <!-- Background -->
-    <div class="card">
+    <div class="card" id="s-background">
         <div class="section-title">background</div>
         <div class="bg-grid">
             <div class="bg-option selected" data-bg="network" id="bg-network">
@@ -168,7 +134,7 @@
         <input type="hidden" id="background" value="network">
 
         <div class="field" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
-            <label>custom background <span style="opacity:0.3">(image or .mp4 · overrides particle selection)</span></label>
+            <label>custom background <span style="color:var(--muted)">(image or .mp4 · overrides particle selection)</span></label>
             <div class="upload-row" style="margin-top:8px">
                 <button class="btn" id="bg-upload-btn">upload image / video</button>
                 <span class="upload-status" id="bg-status"></span>
@@ -181,42 +147,42 @@
                 <img id="bg-preview-img" style="max-width:100%;max-height:110px;border-radius:4px;border:1px solid var(--border);display:none" alt="bg preview">
                 <video id="bg-preview-video" style="max-width:100%;max-height:110px;border-radius:4px;border:1px solid var(--border);display:none" muted loop autoplay playsinline></video>
                 <br>
-                <button class="btn" id="bg-clear-btn" style="margin-top:8px;font-size:0.6rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear custom background</button>
+                <button class="btn" id="bg-clear-btn" style="margin-top:8px;font-size:0.72rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear custom background</button>
             </div>
             <input type="hidden" id="bgUrl">
             <input type="hidden" id="bgType">
         </div>
 
         <div class="field" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
-            <label>glass tint <span style="opacity:0.3">(optional · tints your cards and borders)</span></label>
+            <label>glass tint <span style="color:var(--muted)">(optional · tints your cards and borders)</span></label>
             <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
                 <input type="color" id="accentColor" value="#7f5af0" style="width:38px;height:38px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;padding:2px">
-                <button class="btn" id="accent-clear-btn" style="font-size:0.6rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear tint</button>
-                <span id="accent-status" style="font-size:0.65rem;opacity:0.4"></span>
+                <button class="btn" id="accent-clear-btn" style="font-size:0.72rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear tint</button>
+                <span id="accent-status" style="font-size:0.72rem;color:var(--muted)"></span>
             </div>
         </div>
     </div>
 
     <!-- OG / Social preview -->
-    <div class="card">
+    <div class="card" id="s-embed">
         <div class="section-title">embed / social preview</div>
         <div class="field">
-            <label>title <span style="opacity:0.3">(defaults to display name)</span></label>
+            <label>title <span style="color:var(--muted)">(defaults to display name)</span></label>
             <input type="text" id="ogTitle" placeholder="leave blank to use display name" maxlength="60">
         </div>
         <div class="field">
-            <label>description <span style="opacity:0.3">(defaults to first bio line)</span></label>
+            <label>description <span style="color:var(--muted)">(defaults to first bio line)</span></label>
             <input type="text" id="ogDescription" placeholder="leave blank to use first bio" maxlength="200">
         </div>
         <div class="field">
-            <label>image url <span style="opacity:0.3">(defaults to profile picture)</span></label>
+            <label>image url <span style="color:var(--muted)">(defaults to profile picture)</span></label>
             <input type="url" id="ogImage" placeholder="leave blank to use profile picture">
         </div>
     </div>
 
     <!-- Music -->
-    <div class="card">
-        <div class="section-title">music <span style="opacity:0.4">(optional)</span></div>
+    <div class="card" id="s-music">
+        <div class="section-title">music <span style="color:var(--muted)">(optional)</span></div>
         <div class="toggle-row">
             <input type="checkbox" id="music-enabled">
             <label for="music-enabled">enable music player on profile</label>
@@ -244,8 +210,8 @@
     </div>
 
     <!-- Telegram Gift Badge -->
-    <div class="card">
-        <div class="section-title">telegram gift badge <span style="opacity:0.4">(optional)</span></div>
+    <div class="card" id="s-gift">
+        <div class="section-title">telegram gift badge <span style="color:var(--muted)">(optional)</span></div>
         <div class="field">
             <label>gift link</label>
             <div style="display:flex;gap:8px;align-items:center">
@@ -256,27 +222,27 @@
         </div>
         <div id="gift-preview" style="display:none;margin-top:10px;align-items:center;gap:10px">
             <div id="gift-preview-model" style="width:48px;height:48px;flex-shrink:0"></div>
-            <span id="gift-preview-name" style="font-size:0.7rem;opacity:0.4;letter-spacing:1px"></span>
+            <span id="gift-preview-name" style="font-size:0.7rem;color:var(--muted);letter-spacing:1px"></span>
         </div>
     </div>
 
     <!-- Bio Statements -->
-    <div class="card">
-        <div class="section-title">bio statements <span style="opacity:0.4">(cycles with typewriter)</span></div>
+    <div class="card" id="s-bio">
+        <div class="section-title">bio statements <span style="color:var(--muted)">(cycles with typewriter)</span></div>
         <div class="bio-list" id="bio-list"></div>
         <button class="btn" id="add-bio">+ add statement</button>
     </div>
 
     <!-- Tabs & Buttons -->
-    <div class="card">
+    <div class="card" id="s-links">
         <div class="section-title">tabs & buttons</div>
         <div class="tabs-list" id="tabs-list"></div>
         <button class="btn" id="add-tab">+ add tab</button>
     </div>
 
     <!-- Footer -->
-    <div class="card">
-        <div class="section-title">footer text <span style="opacity:0.4">(optional)</span></div>
+    <div class="card" id="s-footer">
+        <div class="section-title">footer text <span style="color:var(--muted)">(optional)</span></div>
         <div class="field">
             <input type="text" id="footer" placeholder="something short..." maxlength="100">
         </div>
@@ -290,30 +256,20 @@
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
 <script src="/wrk_files/gift.js?v=4"></script>
 <script>
-    tsParticles.load("tsparticles", {
-        particles: {
-            number: { value: 80, density: { enable: true, area: 800 } },
-            color: { value: "#ffffff" }, shape: { type: "circle" },
-            opacity: { value: 0.3 }, size: { value: { min: 1, max: 3 } },
-            links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.2, width: 1 },
-            move: { enable: true, speed: 1, outModes: { default: "out" } }
-        },
-        interactivity: { events: { onHover: { enable: true, mode: "grab" } }, modes: { grab: { distance: 140, links: { opacity: 0.5 } } } },
-        retina_detect: true
-    });
 
     const token = localStorage.getItem('wrk_token');
     const slug  = localStorage.getItem('wrk_slug');
-    if (!token) { window.location.href = '/login'; }
+    if (!token) goLogin();
 
     document.getElementById('preview-link').href = `/${slug}`;
-    document.getElementById('logout-btn').addEventListener('click', () => {
-        localStorage.removeItem('wrk_token');
-        localStorage.removeItem('wrk_slug');
-        window.location.href = '/login';
+    document.getElementById('welcome').hidden = !new URLSearchParams(location.search).has('welcome');
+
+    // The nav makes it easy to leave, so warn before unsaved edits are lost.
+    let savedState = null;
+    window.addEventListener('beforeunload', e => {
+        if (savedState && JSON.stringify(collectProfile()) !== savedState) e.preventDefault();
     });
 
     function authFetch(path, opts = {}) {
@@ -626,9 +582,10 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save failed');
+            savedState = JSON.stringify(collectProfile());
             showMsg('saved', 'ok');
         } catch (e) {
-            if (e.message.includes('unauthorized')) { window.location.href = '/login'; return; }
+            if (e.message.includes('unauthorized')) return goLogin();
             showMsg(e.message, 'err');
         } finally {
             saveBtn.disabled = false; saveBtn.textContent = 'save profile';
@@ -640,7 +597,7 @@
     async function loadProfile() {
         try {
             const res = await authFetch('/auth/me');
-            if (res.status === 401) { window.location.href = '/login'; return; }
+            if (res.status === 401) return goLogin();
             const { profile } = await res.json();
             if (!profile) return;
 
@@ -694,7 +651,8 @@
 
             (profile.bioStatements || []).forEach(s => addBioRow(s));
             (profile.tabs || []).forEach(t => addTabCard(t));
-        } catch { window.location.href = '/login'; }
+            savedState = JSON.stringify(collectProfile());
+        } catch { showMsg('could not load your profile, try refreshing', 'err'); }
     }
 
     function escHtml(str) {
