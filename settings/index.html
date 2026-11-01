@@ -33,6 +33,7 @@
         .bg-option.selected { border-color: var(--accent); background: var(--accent-soft); }
         .bg-option-name { font-size: 0.85rem; font-weight: 700; margin-bottom: 5px; text-transform: lowercase; }
         .bg-option-desc { font-size: 0.74rem; line-height: 1.4; color: var(--muted); }
+        .bg-option-desc a { color: var(--accent); }
         .bio-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
         .bio-row { display: flex; gap: 8px; align-items: center; }
         .bio-row input { flex: 1; }
@@ -128,7 +129,7 @@
             </div>
             <div class="bg-option" data-bg="visualizer" id="bg-visualizer">
                 <div class="bg-option-name">Solar's Code Rain</div>
-                <div class="bg-option-desc">Made by Solartunic2009 · audio-reactive matrix · colors and speed pulse with your music player</div>
+                <div class="bg-option-desc">Made by <a href="/solar" target="_blank" rel="noopener" onclick="event.stopPropagation()">Solartunic2009</a> · audio-reactive matrix · colors and speed pulse with your music player</div>
             </div>
         </div>
         <input type="hidden" id="background" value="network">
