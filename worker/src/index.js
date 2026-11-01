@@ -411,6 +411,12 @@ async function updateProfile(slug, req, env, corsHeaders) {
     if (res?.status === 404) return err('that telegram gift does not exist', 400, corsHeaders);
   }
 
+  // Appearance options: anything missing or unknown keeps what's saved.
+  const pick = (key, allowed) => allowed.includes(body[key]) ? body[key] : existing[key];
+  const percent = key => body[key] == null || !Number.isFinite(Number(body[key])) ? existing[key] : Math.min(100, Math.max(0, Math.round(Number(body[key]))));
+  const text = (key, max) => body[key] === undefined ? existing[key] : String(body[key] ?? '').trim().slice(0, max);
+  const flag = key => body[key] === undefined ? existing[key] : !!body[key];
+
   const updated = {
     ...existing,
     displayName: body.displayName.trim().slice(0, 50),
@@ -437,6 +443,19 @@ async function updateProfile(slug, req, env, corsHeaders) {
     bgType: ['image', 'video'].includes(body.bgType) ? body.bgType : null,
     accentColor: /^#[0-9a-fA-F]{6}$/.test(body.accentColor) ? body.accentColor : null,
     tgGiftUrl,
+    avatarShape: pick('avatarShape', ['square', 'rounded', 'circle']),
+    corners: pick('corners', ['sharp', 'soft', 'round']),
+    cardStyle: pick('cardStyle', ['glass', 'solid', 'clear']),
+    buttonStyle: pick('buttonStyle', ['glass', 'outline', 'solid']),
+    font: pick('font', ['mono', 'sans', 'serif', 'pixel']),
+    nameEffect: pick('nameEffect', ['none', 'glow', 'money']),
+    nameColor: body.nameColor === undefined ? existing.nameColor : /^#[0-9a-fA-F]{6}$/.test(body.nameColor) ? body.nameColor : null,
+    status: text('status', 60),
+    enterText: text('enterText', 30),
+    hideVisits: flag('hideVisits'),
+    hideUid: flag('hideUid'),
+    bgOpacity: percent('bgOpacity'),
+    musicVolume: percent('musicVolume'),
     updatedAt: Date.now(),
   };
 
@@ -709,8 +728,9 @@ export default {
       return fetch(req);
     }
 
-    // API requests only past this point — apply rate limiting
-    if (!await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
+    // API requests only past this point. Only writes are limited: one page view reads many
+    // avatars and files, and counting a read would cost a KV write per request.
+    if (req.method !== 'GET' && !await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
 
     // Auth
     if (req.method === 'POST' && path === '/auth/login')    return login(req, env, corsHeaders, ctx);

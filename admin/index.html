@@ -4,79 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>admin | wrk.money</title>
-    <meta name="theme-color" content="#0a0a0a">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
     <style>
-        :root { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'JetBrains Mono', monospace; }
-        body { background: #0a0a0a; min-height: 100vh; color: #fff; padding: 60px 20px; }
-        #tsparticles { position: fixed; inset: 0; z-index: 0; }
         .container { position: relative; z-index: 1; width: 100%; max-width: 560px; margin: 0 auto; }
-        h1 { font-size: 2rem; font-weight: 700; letter-spacing: 4px; text-transform: lowercase; opacity: 0.9; margin-bottom: 2rem; }
-        .section-title { font-size: 0.6rem; opacity: 0.3; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
-        .card {
-            background: var(--glass); border: 1px solid var(--border);
-            border-radius: 4px; padding: 24px; backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px); margin-bottom: 16px;
-        }
-        .field { margin-bottom: 14px; }
-        .field label { display: block; font-size: 0.6rem; opacity: 0.3; letter-spacing: 2px; margin-bottom: 7px; }
-        input[type="text"], input[type="password"] {
-            width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-            border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem; padding: 10px 13px; outline: none; transition: border-color 0.2s;
-        }
-        input:focus { border-color: rgba(255,255,255,0.35); }
-        input::placeholder { opacity: 0.2; }
-        .hint { font-size: 0.58rem; opacity: 0.2; letter-spacing: 1px; margin-top: 5px; }
-        .btn {
-            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.2);
-            color: #fff; font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem; letter-spacing: 2px; text-transform: lowercase;
-            padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: all 0.2s;
-        }
-        .btn:hover:not(:disabled) { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.5); }
-        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .btn-full { width: 100%; padding: 11px; margin-top: 4px; }
-        .msg { font-size: 0.7rem; margin-top: 10px; letter-spacing: 1px; display: none; }
+        h1 { font-size: 2rem; font-weight: 700; letter-spacing: 0.5px; text-transform: lowercase; opacity: 0.9; margin-bottom: 2rem; }
+        .btn-full { width: 100%; padding: 11px; margin-top: 4px; background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent); font-weight: 700; }
+        .msg { font-size: 0.72rem; margin-top: 10px; letter-spacing: 1px; display: none; }
         .msg.visible { display: block; }
         .msg.ok { color: #6bff9e; }
         .msg.err { color: #ff6b6b; }
         .user-list { display: flex; flex-direction: column; gap: 8px; }
-        .user-row {
-            display: flex; justify-content: space-between; align-items: center;
-            flex-wrap: wrap; gap: 8px;
-            padding: 10px 14px; background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem;
-        }
+        .user-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; font-size: 0.75rem; }
         .user-row > div:first-child { flex: 1; min-width: 0; }
-        .user-row .slug { opacity: 0.4; font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .user-row a { color: rgba(255,255,255,0.4); font-size: 0.6rem; text-decoration: none; letter-spacing: 1px; transition: opacity 0.2s; white-space: nowrap; }
+        .user-row .slug { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+        .user-row a { color: var(--muted); font-size: 0.72rem; text-decoration: none; letter-spacing: 1px; transition: opacity 0.2s; white-space: nowrap; }
         .user-row a:hover { color: #fff; }
         .badge-toggles { display: flex; gap: 4px; flex-wrap: wrap; }
-        .badge-toggle {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.25); font-family: 'JetBrains Mono', monospace;
-            font-size: 0.55rem; letter-spacing: 1px; padding: 3px 8px;
-            border-radius: 3px; cursor: pointer; transition: all 0.2s;
-        }
-        .badge-toggle:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.6); }
+        .badge-toggle { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 1px; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .badge-toggle:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); color: var(--muted); }
         .badge-toggle.active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.45); color: #fff; }
         .badge-toggle:disabled { opacity: 0.3; cursor: not-allowed; }
-        .delete-btn { background: none; border: 1px solid rgba(255,80,80,0.2); color: rgba(255,100,100,0.4); font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; padding: 3px 8px; border-radius: 3px; cursor: pointer; transition: all 0.2s; }
+        .delete-btn { background: none; border: 1px solid rgba(255,80,80,0.2); color: rgba(255,100,100,0.4); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .delete-btn:hover { border-color: rgba(255,80,80,0.6); color: #ff6b6b; background: rgba(255,80,80,0.08); }
-        .uid-input { width: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.35); font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; padding: 3px 6px; border-radius: 3px; text-align: center; }
+        .uid-input { width: 44px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 3px 6px; border-radius: 8px; text-align: center; }
         .uid-input:focus { outline: none; border-color: rgba(255,255,255,0.35); color: #fff; }
         .uid-input::placeholder { opacity: 0.4; }
-        .empty { font-size: 0.7rem; opacity: 0.25; letter-spacing: 1px; text-align: center; padding: 20px 0; }
-        .gate { text-align: center; padding: 60px 0; }
-        .gate p { font-size: 0.7rem; opacity: 0.4; letter-spacing: 2px; margin-bottom: 20px; }
-        .footer { position: fixed; bottom: 30px; width: 100%; text-align: center; left: 0; z-index: 1; font-size: 0.6rem; opacity: 0.2; letter-spacing: 4px; }
+        .empty { font-size: 0.72rem; letter-spacing: 1px; text-align: center; padding: 20px 0; color: var(--muted); }
+        .gate { text-align: center; padding: 44px 24px; }
+        .gate p { font-size: 0.72rem; letter-spacing: 0.5px; margin-bottom: 20px; color: var(--muted); }
     </style>
 </head>
 <body>
-<div id="tsparticles"></div>
+<script src="/wrk_files/site.js?v=1"></script>
 <div class="container">
     <h1>admin</h1>
 
@@ -94,7 +56,7 @@
         <div class="card">
             <div class="section-title">message of the day</div>
             <div class="field">
-                <label>motd <span style="opacity:0.4">(shown at top of /directory · leave blank to clear)</span></label>
+                <label>motd <span style="color:var(--muted)">(shown at top of /directory · leave blank to clear)</span></label>
                 <input type="text" id="motd-input" placeholder="say something to the crew..." maxlength="280">
             </div>
             <button class="btn btn-full" id="motd-btn">set motd</button>
@@ -109,13 +71,13 @@
                 <div class="hint">lowercase, letters/numbers/hyphens, min 3 chars</div>
             </div>
             <div class="field">
-                <label>password <span style="opacity:0.4">(optional — user can set it themselves via /setup)</span></label>
+                <label>password <span style="color:var(--muted)">(optional — user can set it themselves via /setup)</span></label>
                 <input type="password" id="reg-password" placeholder="leave blank for user to claim">
             </div>
             <div class="field">
-                <label>profile slug <span style="opacity:0.4">(optional — defaults to username)</span></label>
+                <label>profile slug <span style="color:var(--muted)">(optional — defaults to username)</span></label>
                 <div style="display:flex;align-items:center;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;overflow:hidden">
-                    <span style="font-size:0.7rem;opacity:0.3;padding:10px 0 10px 13px;white-space:nowrap">wrk.money/</span>
+                    <span style="font-size:0.7rem;color:var(--muted);padding:10px 0 10px 13px;white-space:nowrap">wrk.money/</span>
                     <input type="text" id="reg-slug" placeholder="their-slug" style="border:none;background:transparent;padding-left:4px">
                 </div>
                 <div class="hint">leave blank to use username · min 3 chars for new profiles</div>
@@ -133,19 +95,7 @@
     </div>
 </div>
 <div class="footer">WRK.MONEY // ADMIN</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
 <script>
-    tsParticles.load("tsparticles", {
-        particles: {
-            number: { value: 80, density: { enable: true, area: 800 } },
-            color: { value: "#ffffff" }, shape: { type: "circle" },
-            opacity: { value: 0.3 }, size: { value: { min: 1, max: 3 } },
-            links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.2, width: 1 },
-            move: { enable: true, speed: 1, outModes: { default: "out" } }
-        },
-        interactivity: { events: { onHover: { enable: true, mode: "grab" } }, modes: { grab: { distance: 140, links: { opacity: 0.5 } } } },
-        retina_detect: true
-    });
 
     let adminSecret = sessionStorage.getItem('wrk_admin_secret') || '';
     const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -202,7 +152,7 @@
             return `
             <div class="user-row">
                 <div>
-                    <div>${esc(u.username)} <span style="font-size:0.55rem;opacity:0.35;letter-spacing:1px">${u.claimed ? '· claimed' : '· unclaimed'}</span></div>
+                    <div>${esc(u.username)} <span style="font-size:0.72rem;color:var(--muted);letter-spacing:1px">${u.claimed ? '· claimed' : '· unclaimed'}</span></div>
                     <div class="slug">wrk.money/${esc(u.slug)}</div>
                 </div>
                 <div class="badge-toggles">

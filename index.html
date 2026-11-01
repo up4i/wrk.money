@@ -4,211 +4,216 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>wrk.money</title>
-    <meta name="description" content="tools, profiles, and a community hub.">
+    <meta name="description" content="custom profiles, private tools and an ad-free startpage.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://wrk.money/">
     <meta property="og:title" content="wrk.money">
-    <meta property="og:description" content="tools, profiles, and a community hub.">
-    <meta name="theme-color" content="#0a0a0a">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <meta property="og:description" content="custom profiles, private tools and an ad-free startpage.">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
     <style>
-        :root { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); --text: #ffffff; }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'JetBrains Mono', monospace; }
+        .container { max-width: 860px; }
 
-        body {
-            background-color: #0a0a0a;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: var(--text);
-            overflow-x: hidden;
-            position: relative;
-            padding: 70px 20px 60px;
-        }
+        .hero { padding: clamp(12px, 5vh, 56px) 0 40px; }
+        .eyebrow { color: var(--accent); font-size: 0.78rem; font-weight: 700; margin-bottom: 14px; }
+        .hero-title { font-size: clamp(2.8rem, 12vw, 5.2rem); letter-spacing: -2px; line-height: 1.02; }
+        .hero-sub { color: var(--muted); font-size: clamp(0.95rem, 2.6vw, 1.1rem); max-width: 520px; margin: 16px 0 26px; }
+        .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .hero-actions .btn { padding: 13px 22px; font-size: 0.88rem; }
 
-        .site-header {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-            height: 46px;
-            background: rgba(10,10,10,0.85);
-            border-bottom: 1px solid rgba(255,255,255,0.07);
-            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px;
-        }
-        .header-logo {
-            font-size: 0.68rem; opacity: 0.35; letter-spacing: 3px;
-            text-decoration: none; color: #fff; transition: opacity 0.2s;
-        }
-        .header-logo:hover { opacity: 0.7; }
-        .header-actions { display: flex; gap: 8px; }
-        .header-btn {
-            font-size: 0.6rem; letter-spacing: 2px; padding: 5px 13px;
-            border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
-            background: transparent; color: #fff; text-decoration: none;
-            font-family: 'JetBrains Mono', monospace; cursor: pointer;
-            transition: all 0.2s; text-transform: lowercase;
-        }
-        .header-btn:hover { border-color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.04); }
+        .home-section { margin-bottom: 30px; }
 
-        #tsparticles { position: fixed; inset: 0; z-index: 0; }
+        .welcome { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
+        .welcome img { width: 74px; height: 74px; border-radius: 16px; object-fit: cover; border: 2px solid var(--accent-line); box-shadow: 0 0 30px -8px rgba(0, 255, 136, 0.6); }
+        .welcome-link { color: var(--muted); font-size: 0.82rem; text-decoration: none; }
+        .welcome-link:hover { color: var(--accent); }
 
-        .container {
-            position: relative;
-            text-align: center;
-            width: 100%;
-            max-width: 400px;
-            z-index: 1;
-        }
+        .motd { display: none; }
+        .motd.visible { display: block; }
+        .motd b { color: var(--accent); margin-right: 8px; }
 
-        h1 {
-            font-size: clamp(1.6rem, 8vw, 2.2rem);
-            font-weight: 700;
-            letter-spacing: 4px;
-            text-transform: lowercase;
-            opacity: 0.9;
-            margin-bottom: 0.5rem;
-        }
+        .invite { color: var(--muted); font-size: 0.82rem; margin-top: 26px; }
+        .invite a { color: var(--text); }
+        .invite a:hover { color: var(--accent); }
 
-        .tagline {
-            font-size: 0.6rem;
-            opacity: 0.2;
-            letter-spacing: 3px;
-            text-transform: lowercase;
-            margin-bottom: 2.5rem;
-        }
-
-        .section-label {
-            font-size: 0.6rem;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            color: rgba(255,255,255,0.2);
-            margin: 0 0 10px 4px;
-            text-align: left;
-            display: block;
-        }
-
-        .nav-group { margin-bottom: 20px; }
-
-        .hub-btn {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 20px;
-            background: var(--glass); border: 1px solid var(--border);
-            border-radius: 4px; text-decoration: none; color: var(--text);
-            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            text-transform: lowercase; font-size: 0.85rem; letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-        .hub-btn:last-child { margin-bottom: 0; }
-        .hub-btn:hover {
-            background: rgba(255,255,255,0.07);
-            border-color: rgba(255,255,255,0.4);
-            transform: translateY(-2px);
-        }
-        .btn-desc {
-            font-size: 0.55rem;
-            opacity: 0.25;
-            letter-spacing: 1px;
-            text-align: right;
-        }
-
-        .tools-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .tool-btn {
-            display: flex; flex-direction: column; align-items: flex-start;
-            padding: 14px 16px;
-            background: var(--glass); border: 1px solid var(--border);
-            border-radius: 4px; text-decoration: none; color: var(--text);
-            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-            backdrop-filter: blur(8px);
-            text-transform: lowercase;
-            gap: 4px;
-        }
-        .tool-btn:hover {
-            background: rgba(255,255,255,0.07);
-            border-color: rgba(255,255,255,0.4);
-            transform: translateY(-2px);
-        }
-        .tool-name { font-size: 0.82rem; letter-spacing: 1px; }
-        .tool-desc { font-size: 0.52rem; opacity: 0.22; letter-spacing: 1px; }
-
-        .console-footer {
-            position: fixed;
-            bottom: 24px; left: 0;
-            font-size: 0.62rem; opacity: 0.15;
-            letter-spacing: 4px;
-            width: 100%; text-align: center; z-index: 1;
-        }
-
-        @media (max-width: 360px) {
-            .tools-grid { grid-template-columns: 1fr; }
-        }
+        .tile.made, .tile.made:hover { border-color: transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--gradient) border-box; }
+        .tile.made:hover { box-shadow: 0 12px 34px -14px rgba(133, 187, 101, 0.8); }
     </style>
 </head>
 <body>
+<script src="/wrk_files/site.js?v=1"></script>
 
-<header class="site-header">
-    <a href="/" class="header-logo">wrk.money</a>
-    <div class="header-actions" id="header-actions">
-        <a href="/login" class="header-btn">login</a>
+<main class="container">
+    <div id="home-guest" hidden>
+        <section class="hero">
+            <p class="eyebrow">invite-only corner of the internet</p>
+            <h1 class="hero-title"><span class="gradient-text">wrk.money</span></h1>
+            <p class="hero-sub">custom profiles, private tools and an ad-free startpage.</p>
+            <div class="hero-actions">
+                <a href="/login" class="btn btn-primary">log in</a>
+                <a href="/startpage" class="btn">try the startpage</a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">what's here</span>
+            <div class="tile-grid">
+                <a href="/startpage" class="tile">
+                    <span class="tile-icon">/</span>
+                    <span class="tile-name">startpage</span>
+                    <span class="tile-desc">ad-free search with quick commands.</span>
+                    <span class="tile-tag">open to all</span>
+                </a>
+                <a href="/directory" class="tile">
+                    <span class="tile-icon">@</span>
+                    <span class="tile-name">directory</span>
+                    <span class="tile-desc">find every member's profile.</span>
+                    <span class="tile-tag">members</span>
+                </a>
+                <a href="/tools" class="tile">
+                    <span class="tile-icon">&gt;_</span>
+                    <span class="tile-name">tools</span>
+                    <span class="tile-desc">pastebin, file share, short links, ip checker.</span>
+                    <span class="tile-tag">members</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">things i made / help run</span>
+            <div class="tile-grid pairs">
+                <a href="https://juicewrldgrail.com" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">999</span>
+                    <span class="tile-name">juice wrld grail</span>
+                    <span class="tile-desc">unofficial fan archive of released and unreleased songs and studio sessions.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+                <a href="https://clue.tg" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">?</span>
+                    <span class="tile-name">clue.tg</span>
+                    <span class="tile-desc">telegram gift intelligence: search every collection, score gifts and track market caps.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+            </div>
+            <p class="invite">
+                got an invite? <a href="/setup">claim your profile</a> ·
+                want one? <a href="https://t.me/ogkush" target="_blank" rel="noopener">dm me on telegram</a>
+            </p>
+        </section>
     </div>
-</header>
 
-<div id="tsparticles"></div>
+    <div id="home-member" hidden>
+        <section class="welcome">
+            <img id="member-avatar" src="/wrk_files/999circle.png" alt="">
+            <div>
+                <h1 id="member-greeting"></h1>
+                <a class="welcome-link" id="member-link"></a>
+            </div>
+        </section>
 
-<div class="container">
-    <h1>wrk.money</h1>
-    <div class="tagline">profiles · community</div>
+        <div class="hero-actions home-section">
+            <a class="btn btn-primary" id="member-view">view my profile</a>
+            <a class="btn" href="/settings">edit profile</a>
+        </div>
 
-    <div class="nav-group">
-        <span class="section-label">explore</span>
-        <a href="/startpage" class="hub-btn">
-            <span>startpage</span>
-            <span class="btn-desc">ad-free search</span>
-        </a>
-        <a href="/directory" class="hub-btn" id="directory-btn">
-            <span>directory</span>
-            <span class="btn-desc">members · chat</span>
-        </a>
-        <a href="/tools" class="hub-btn">
-            <span>tools</span>
-            <span class="btn-desc">pastebin · files · links · ip checker</span>
-        </a>
+        <div class="card motd" id="motd"><b>motd</b><span id="motd-text"></span></div>
+
+        <section class="home-section">
+            <span class="section-label">tools</span>
+            <div class="tile-grid pairs">
+                <a href="/tools/pastebin" class="tile">
+                    <span class="tile-icon">{ }</span>
+                    <span class="tile-name">pastebin</span>
+                    <span class="tile-desc">share text with expiring links.</span>
+                </a>
+                <a href="/tools/fileshare" class="tile">
+                    <span class="tile-icon">↑</span>
+                    <span class="tile-name">file share</span>
+                    <span class="tile-desc">upload a file, get a link.</span>
+                </a>
+                <a href="/tools/shortener" class="tile">
+                    <span class="tile-icon">→</span>
+                    <span class="tile-name">url shortener</span>
+                    <span class="tile-desc">custom wrk.money/s/ links.</span>
+                </a>
+                <a href="/tools/ip-checker" class="tile">
+                    <span class="tile-icon">#</span>
+                    <span class="tile-name">ip / url checker</span>
+                    <span class="tile-desc">location, network and reputation.</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">explore</span>
+            <div class="tile-grid">
+                <a href="/directory" class="tile">
+                    <span class="tile-icon">@</span>
+                    <span class="tile-name">directory</span>
+                    <span class="tile-desc">find every member's profile.</span>
+                </a>
+                <a href="/startpage" class="tile">
+                    <span class="tile-icon">/</span>
+                    <span class="tile-name">startpage</span>
+                    <span class="tile-desc">ad-free search with quick commands.</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section">
+            <span class="section-label">things i made / help run</span>
+            <div class="tile-grid pairs">
+                <a href="https://juicewrldgrail.com" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">999</span>
+                    <span class="tile-name">juice wrld grail</span>
+                    <span class="tile-desc">unofficial fan archive of released and unreleased songs and studio sessions.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+                <a href="https://clue.tg" class="tile made" target="_blank" rel="noopener">
+                    <span class="tile-icon">?</span>
+                    <span class="tile-name">clue.tg</span>
+                    <span class="tile-desc">telegram gift intelligence: search every collection, score gifts and track market caps.</span>
+                    <span class="tile-tag">↗</span>
+                </a>
+            </div>
+        </section>
     </div>
-</div>
+</main>
 
 <div class="console-footer">NETWORK.ESTABLISHED // HUB_01</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
 <script>
-    // Update header based on login state
-    const token = localStorage.getItem('wrk_token');
-    if (token) {
-        document.getElementById('header-actions').innerHTML = `
-            <a href="/directory" class="header-btn">directory</a>
-            <a href="/settings" class="header-btn">my profile</a>
-        `;
-    }
+    const slug = localStorage.getItem('wrk_slug');
+    const member = localStorage.getItem('wrk_token') && slug;
+    document.getElementById(member ? 'home-member' : 'home-guest').hidden = false;
 
-    tsParticles.load("tsparticles", {
-        particles: {
-            number: { value: 80, density: { enable: true, area: 800 } },
-            color: { value: "#ffffff" }, shape: { type: "circle" },
-            opacity: { value: 0.3 }, size: { value: { min: 1, max: 3 } },
-            links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.2, width: 1 },
-            move: { enable: true, speed: 1, direction: "none", outModes: { default: "out" } }
-        },
-        interactivity: {
-            events: { onHover: { enable: true, mode: "grab" }, onClick: { enable: true, mode: "push" } },
-            modes: { grab: { distance: 140, links: { opacity: 0.5 } }, push: { quantity: 4 } }
-        },
-        retina_detect: true
-    });
+    if (member) {
+        const greet = name => {
+            const h1 = document.getElementById('member-greeting');
+            h1.textContent = `${timeGreeting()}, `;
+            const span = h1.appendChild(document.createElement('span'));
+            span.className = 'gradient-text';
+            span.textContent = name;
+        };
+        greet(slug);
+        document.getElementById('member-view').href = `/${slug}`;
+        const link = document.getElementById('member-link');
+        link.href = `/${slug}`;
+        link.textContent = `wrk.money/${slug}`;
+
+        siteUser().then(me => {
+            if (me?.profile?.displayName) greet(me.profile.displayName);
+            if (me?.profile?.avatar) document.getElementById('member-avatar').src = me.profile.avatar;
+        });
+
+        fetch(`${SITE_API}/motd`).then(res => res.ok ? res.json() : null).then(data => {
+            if (!data?.motd) return;
+            document.getElementById('motd-text').textContent = data.motd;
+            document.getElementById('motd').classList.add('visible');
+        }).catch(() => {});
+    }
 </script>
 </body>
 </html>

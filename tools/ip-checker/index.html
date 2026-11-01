@@ -12,257 +12,47 @@
     <meta property="og:title" content="ip / url checker | wrk.money">
     <meta property="og:description" content="check any ip or url — geolocation, network info, reputation links.">
 
-    <meta name="theme-color" content="#ffffff">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
 
+    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
     <style>
-        :root {
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.1);
-            --text: #ffffff;
-            --green: #00ff88;
-            --yellow: #ffc800;
-            --red: #ff5050;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        body {
-            background-color: #0a0a0a;
-            min-height: 100vh;
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 60px 20px 80px;
-            position: relative;
-        }
-
-        #tsparticles {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: 0;
-        }
-
-        .container {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 580px;
-        }
-
-        .back-link {
-            display: inline-block;
-            font-size: 0.65rem;
-            opacity: 0.3;
-            letter-spacing: 2px;
-            text-decoration: none;
-            color: #fff;
-            margin-bottom: 36px;
-            transition: opacity 0.2s;
-        }
-        .back-link:hover { opacity: 0.7; }
-
-        h1 {
-            font-size: 1.7rem;
-            font-weight: 700;
-            letter-spacing: 4px;
-            text-transform: lowercase;
-            margin-bottom: 6px;
-        }
-
-        .subtitle {
-            font-size: 0.62rem;
-            opacity: 0.3;
-            letter-spacing: 3px;
-            margin-bottom: 40px;
-            text-transform: uppercase;
-        }
-
-        .input-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 28px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: #fff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            padding: 14px 16px;
-            outline: none;
-            transition: border-color 0.2s;
-            letter-spacing: 1px;
-            backdrop-filter: blur(8px);
-        }
-        input[type="text"]::placeholder { opacity: 0.25; }
-        input[type="text"]:focus { border-color: rgba(255, 255, 255, 0.4); }
-
-        button {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: #fff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem;
-            letter-spacing: 2px;
-            padding: 14px 22px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: lowercase;
-            backdrop-filter: blur(8px);
-        }
-        button:hover {
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(255, 255, 255, 0.4);
-        }
-        button:disabled { opacity: 0.35; cursor: default; }
-
-        .card {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 22px 24px;
-            margin-bottom: 10px;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-        }
-
-        .card-label {
-            font-size: 0.58rem;
-            letter-spacing: 3px;
-            opacity: 0.3;
-            text-transform: uppercase;
-            margin-bottom: 14px;
-        }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 9px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            font-size: 0.78rem;
-            gap: 12px;
-        }
+        :root { --green: #00ff88; --yellow: #ffc800; --red: #ff5050; }
+        .container { position: relative; z-index: 1; width: 100%; max-width: 580px; }
+        h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: 0.5px; text-transform: lowercase; margin-bottom: 6px; }
+        .subtitle { font-size: 0.72rem; letter-spacing: 0.5px; margin-bottom: 40px; text-transform: uppercase; color: var(--muted); }
+        .input-row { display: flex; gap: 10px; margin-bottom: 28px; }
+        .input-row input { flex: 1; min-width: 0; }
+        button { border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; letter-spacing: 0.5px; padding: 14px 22px; cursor: pointer; transition: all 0.2s; text-transform: lowercase; backdrop-filter: blur(8px); background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent); font-weight: 700; }
+        button:hover { filter: brightness(1.1); box-shadow: 0 8px 26px -8px rgba(0, 255, 136, 0.7); }
+        .card-label { font-size: 0.72rem; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 14px; color: var(--muted); }
+        .info-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 0.78rem; gap: 12px; }
         .info-row:last-child { border-bottom: none; padding-bottom: 0; }
         .info-row:first-of-type { padding-top: 0; }
-
-        .info-key {
-            opacity: 0.35;
-            letter-spacing: 1px;
-            flex-shrink: 0;
-        }
-        .info-val {
-            opacity: 0.85;
-            text-align: right;
-            word-break: break-all;
-        }
-
-        .risk-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 3px;
-            font-size: 0.68rem;
-            letter-spacing: 2px;
-            text-transform: lowercase;
-        }
+        .info-key { opacity: 0.35; letter-spacing: 1px; flex-shrink: 0; }
+        .info-val { opacity: 0.85; text-align: right; word-break: break-all; }
+        .risk-badge { display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 0.72rem; letter-spacing: 0.5px; text-transform: lowercase; }
         .risk-residential { color: var(--green); border: 1px solid rgba(0, 255, 136, 0.25); }
-        .risk-hosting     { color: var(--yellow); border: 1px solid rgba(255, 200, 0, 0.25); }
-        .risk-vpn         { color: var(--red); border: 1px solid rgba(255, 80, 80, 0.25); }
-
-        .links-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .ext-link {
-            display: inline-block;
-            font-size: 0.68rem;
-            letter-spacing: 1px;
-            color: #fff;
-            text-decoration: none;
-            opacity: 0.45;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 3px;
-            padding: 7px 13px;
-            transition: all 0.2s;
-        }
-        .ext-link:hover {
-            opacity: 0.85;
-            border-color: rgba(255, 255, 255, 0.4);
-            background: rgba(255, 255, 255, 0.04);
-        }
-
-        .status-msg {
-            font-size: 0.75rem;
-            letter-spacing: 2px;
-            padding: 16px 0;
-        }
-        .status-loading {
-            opacity: 0.35;
-            animation: pulse 1.2s ease-in-out infinite;
-        }
+        .risk-hosting { color: var(--yellow); border: 1px solid rgba(255, 200, 0, 0.25); }
+        .risk-vpn { color: var(--red); border: 1px solid rgba(255, 80, 80, 0.25); }
+        .links-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .ext-link { display: inline-block; font-size: 0.72rem; letter-spacing: 1px; color: #fff; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 7px 13px; transition: all 0.2s; }
+        .ext-link:hover { opacity: 0.85; border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.04); }
+        .status-msg { font-size: 0.75rem; letter-spacing: 0.5px; padding: 16px 0; }
+        .status-loading { opacity: 0.35; animation: pulse 1.2s ease-in-out infinite; }
         .status-error { opacity: 0.55; color: var(--red); }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 0.35; }
-            50%       { opacity: 0.1; }
-        }
-
-        .raw-toggle {
-            display: inline-block;
-            font-size: 0.6rem;
-            opacity: 0.25;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            margin-top: 14px;
-        }
+        @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.1; } }
+        .raw-toggle { display: inline-block; font-size: 0.72rem; letter-spacing: 0.5px; cursor: pointer; transition: opacity 0.2s; margin-top: 14px; color: var(--muted); }
         .raw-toggle:hover { opacity: 0.6; }
-
-        pre.raw-data {
-            background: rgba(255, 255, 255, 0.015);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 4px;
-            padding: 16px;
-            font-size: 0.65rem;
-            opacity: 0.45;
-            overflow-x: auto;
-            margin-top: 10px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            display: none;
-            line-height: 1.6;
-        }
-
-        .scan-link {
-            color: #fff;
-            opacity: 0.6;
-            text-decoration: none;
-            transition: opacity 0.2s;
-        }
+        pre.raw-data { background: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 16px; font-size: 0.72rem; overflow-x: auto; margin-top: 10px; white-space: pre-wrap; word-break: break-all; display: none; line-height: 1.6; color: var(--muted); }
+        .scan-link { color: #fff; opacity: 0.6; text-decoration: none; transition: opacity 0.2s; }
         .scan-link:hover { opacity: 1; }
     </style>
     <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/ip-checker');</script>
 </head>
 <body>
-
-    <div id="tsparticles"></div>
+<script src="/wrk_files/site.js?v=1"></script>
 
     <div class="container">
         <a href="/tools" class="back-link">← tools</a>
@@ -278,24 +68,7 @@
         <div id="results"></div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
     <script>
-        tsParticles.load("tsparticles", {
-            particles: {
-                number: { value: 60, density: { enable: true, area: 800 } },
-                color: { value: "#ffffff" },
-                shape: { type: "circle" },
-                opacity: { value: 0.2 },
-                size: { value: { min: 1, max: 2 } },
-                links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.1, width: 1 },
-                move: { enable: true, speed: 0.8, outModes: { default: "out" } }
-            },
-            interactivity: {
-                events: { onHover: { enable: true, mode: "grab" } },
-                modes: { grab: { distance: 140, links: { opacity: 0.3 } } }
-            },
-            retina_detect: true
-        });
 
         document.getElementById('query').addEventListener('keydown', e => {
             if (e.key === 'Enter') runCheck();
@@ -488,7 +261,7 @@
                 </div>` : '';
 
                 const bogonNote = ipInfo.bogon
-                    ? `<div class="info-row"><span class="info-key">note</span><span class="info-val" style="opacity:0.5">private / reserved address</span></div>`
+                    ? `<div class="info-row"><span class="info-key">note</span><span class="info-val" style="color:var(--muted)">private / reserved address</span></div>`
                     : '';
 
                 results.style.display = 'block';
