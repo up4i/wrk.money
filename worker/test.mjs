@@ -330,7 +330,7 @@ globalThis.fetch = realFetch;
   };
   const html = await call(env, 'https://wrk.money/some-page', { headers: { 'Accept-Encoding': 'gzip, br' } });
   assert.equal(originEncoding, null, 'the origin must not send brotli, which the rewriter cannot read');
-  const policy = html.headers.get('Content-Security-Policy-Report-Only');
+  const policy = html.headers.get('Content-Security-Policy');
   assert.match(policy, /script-src 'nonce-[0-9a-f]{32}' 'strict-dynamic'/);
   assert.match(policy, /frame-ancestors 'none'/);
   assert.equal(html.headers.get('X-Content-Type-Options'), 'nosniff');
@@ -340,17 +340,17 @@ globalThis.fetch = realFetch;
   assert.ok(policy.includes(`nonce-${tag.attrs.nonce}`), 'scripts carry the same nonce as the policy');
 
   const second = await call(env, 'https://wrk.money/some-page');
-  assert.notEqual(second.headers.get('Content-Security-Policy-Report-Only'), policy, 'each load gets a new nonce');
+  assert.notEqual(second.headers.get('Content-Security-Policy'), policy, 'each load gets a new nonce');
 
   globalThis.fetch = async () => new Response(null, { status: 304, headers: { ETag: 'x' } });
   const cached = await call(env, 'https://wrk.money/some-page');
   assert.equal(cached.status, 304);
-  assert.equal(cached.headers.get('Content-Security-Policy-Report-Only'), null);
+  assert.equal(cached.headers.get('Content-Security-Policy'), null);
 
   globalThis.fetch = async () => new Response('body{}', { headers: { 'Content-Type': 'text/css' } });
   const asset = await call(env, 'https://wrk.money/wrk_files/site.css');
   assert.equal(asset.headers.get('X-Frame-Options'), 'DENY');
-  assert.equal(asset.headers.get('Content-Security-Policy-Report-Only'), null);
+  assert.equal(asset.headers.get('Content-Security-Policy'), null);
   globalThis.fetch = realFetch;
 }
 

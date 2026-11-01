@@ -8,8 +8,8 @@ const PAGE_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-// Report-Only logs what the policy would block without blocking it.
-export const CSP_HEADER = 'Content-Security-Policy-Report-Only';
+// Use Content-Security-Policy-Report-Only to log what it would block without blocking it.
+export const CSP_HEADER = 'Content-Security-Policy';
 
 // Only scripts carrying the page's nonce can run, which rules out injected
 // attributes and javascript: links. Members' media can come from any https host.
