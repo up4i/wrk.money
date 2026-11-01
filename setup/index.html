@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>claim your profile | wrk.money</title>
+    <title>set your password | wrk.money</title>
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/wrk_files/site.css?v=3">
@@ -12,11 +12,6 @@
         .container { max-width: 420px; }
         h1 { margin-bottom: 6px; }
         .page-sub { margin: 0 0 22px; }
-        .slug-row { display: flex; align-items: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 8px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-        .slug-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-        .slug-prefix { color: var(--muted); font-size: 0.85rem; padding-left: 14px; white-space: nowrap; }
-        .slug-row input { flex: 1; min-width: 0; background: transparent; border: none; padding-left: 2px; }
-        .slug-row input:focus { box-shadow: none; }
         form .btn { width: 100%; padding: 13px; margin-top: 4px; }
         .auth-links { color: var(--muted); font-size: 0.8rem; text-align: center; margin-top: 18px; }
         .auth-links a { color: var(--text); }
@@ -26,15 +21,17 @@
 <body class="page-center">
 <script src="/wrk_files/site.js?v=4"></script>
 <main class="container">
-    <h1>claim your <span class="gradient-text">profile</span></h1>
-    <p class="page-sub">set a password for the account you were invited to.</p>
+    <h1>set your <span class="gradient-text">password</span></h1>
+    <p class="page-sub">claim your account or reset a forgotten password with your one-time code.</p>
     <form class="card" id="setup-form">
         <div class="field">
-            <label for="slug">your profile link</label>
-            <div class="slug-row">
-                <span class="slug-prefix">wrk.money/</span>
-                <input type="text" id="slug" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-            </div>
+            <label for="username">username</label>
+            <input type="text" id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </div>
+        <div class="field">
+            <label for="code">one-time code</label>
+            <input type="text" id="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
+            <div class="hint">works once and expires after 1 hour</div>
         </div>
         <div class="field">
             <label for="password">new password</label>
@@ -45,19 +42,21 @@
             <label for="confirm">confirm password</label>
             <input type="password" id="confirm" autocomplete="new-password" required>
         </div>
-        <button class="btn btn-primary" id="submit" type="submit">claim profile</button>
+        <button class="btn btn-primary" id="submit" type="submit">set password</button>
         <div class="error" id="error" role="alert"></div>
     </form>
-    <div class="auth-links">already set up? <a href="/login">log in</a></div>
+    <div class="auth-links">
+        no code? <a href="https://t.me/ogkush" target="_blank" rel="noopener">dm me on telegram</a><br>
+        already set up? <a href="/login">log in</a>
+    </div>
 </main>
 <script>
-    if (localStorage.getItem('wrk_token')) window.location.href = '/settings';
-
-    // pre-fill slug from URL param e.g. /setup?slug=john
+    // pre-fill the username from the URL, e.g. /setup?username=john
     const params = new URLSearchParams(window.location.search);
-    if (params.get('slug')) document.getElementById('slug').value = params.get('slug');
+    const userEl    = document.getElementById('username');
+    userEl.value = params.get('username') || params.get('slug') || '';
 
-    const slugEl    = document.getElementById('slug');
+    const codeEl    = document.getElementById('code');
     const passEl    = document.getElementById('password');
     const confEl    = document.getElementById('confirm');
     const submitBtn = document.getElementById('submit');
@@ -70,32 +69,31 @@
 
     document.getElementById('setup-form').addEventListener('submit', async e => {
         e.preventDefault();
-        const slug     = slugEl.value.trim();
         const password = passEl.value;
 
         if (password !== confEl.value) return showError('passwords do not match');
         if (password.length < 8) return showError('password must be at least 8 characters');
 
         submitBtn.disabled = true;
-        submitBtn.textContent = 'setting up...';
+        submitBtn.textContent = 'saving...';
         errorEl.classList.remove('visible');
 
         try {
             const res = await fetch('https://api.wrk.money/auth/setup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slug, password }),
+                body: JSON.stringify({ username: userEl.value.trim(), code: codeEl.value, password }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'setup failed');
+            if (!res.ok) throw new Error(data.error || 'could not set your password');
 
             localStorage.setItem('wrk_token', data.token);
             localStorage.setItem('wrk_slug', data.slug);
-            window.location.href = '/settings?welcome=1';
+            window.location.href = data.firstTime ? '/settings?welcome=1' : '/';
         } catch (e) {
             showError(e.message);
             submitBtn.disabled = false;
-            submitBtn.textContent = 'claim profile';
+            submitBtn.textContent = 'set password';
         }
     });
 </script>

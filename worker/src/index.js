@@ -28,8 +28,7 @@ function monthKey() {
   return `usage:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function nanoid(len = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+function nanoid(len = 8, chars = 'abcdefghijklmnopqrstuvwxyz0123456789') {
   let id = '';
   const bytes = crypto.getRandomValues(new Uint8Array(len));
   for (const b of bytes) id += chars[b % chars.length];
@@ -217,6 +216,15 @@ async function legacyHashPassword(password, salt) {
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
 const SESSION_MAX_SECONDS = 60 * 60 * 24 * 30;
 
+const CODE_SECONDS = 60 * 60;
+const CODE_TRIES = 5;
+// No 0, O, 1, I or L, so a code survives being read out or retyped.
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function hashCode(slug, code) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${slug}:${code}`)).then(toHex);
+}
+
 function sessionClaims(user) {
   const now = Math.floor(Date.now() / 1000);
   return { username: user.username, slug: user.slug, born: now, exp: now + SESSION_SECONDS };
@@ -257,7 +265,11 @@ async function requireAuth(req, env) {
   const auth = req.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (!token) return null;
-  return verifyJWT(token, env.JWT_SECRET);
+  const payload = await verifyJWT(token, env.JWT_SECRET);
+  if (!payload) return null;
+  // A password reset ends every session from before it.
+  const cutoff = await env.WRK_KV.get(`revoked:${payload.slug}`);
+  return cutoff && (payload.born || 0) < Number(cutoff) ? null : payload;
 }
 
 function requireAdmin(req, env) {
@@ -276,12 +288,21 @@ function validateSlug(slug) {
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
+// Accounts are stored under the name they were created with, which may have capitals.
+async function findUser(env, name) {
+  const typed = String(name).trim();
+  for (const key of new Set([`user:${typed.toLowerCase()}`, `user:${typed}`])) {
+    const user = await env.WRK_KV.get(key, { type: 'json' });
+    if (user) return { key, user };
+  }
+  return {};
+}
+
 async function login(req, env, corsHeaders, ctx) {
   const body = await req.json().catch(() => null);
   if (!body?.username || !body?.password) return err('username and password required', 400, corsHeaders);
 
-  const key = `user:${body.username.toLowerCase()}`;
-  const user = await env.WRK_KV.get(key, { type: 'json' });
+  const { key, user } = await findUser(env, body.username);
   if (!user) return err('invalid credentials', 401, corsHeaders);
 
   if (!user.passwordHash) return err('account not yet claimed — set your password first', 403, corsHeaders);
@@ -308,27 +329,50 @@ async function login(req, env, corsHeaders, ctx) {
   return json({ token, username: user.username, slug: user.slug, prefs }, 200, corsHeaders);
 }
 
+async function issueCode(req, env, corsHeaders) {
+  if (!requireAdmin(req, env)) return err('forbidden', 403, corsHeaders);
+  const body = await req.json().catch(() => null);
+  const { user } = await findUser(env, body?.username ?? '');
+  if (!user) return err('account not found', 404, corsHeaders);
+
+  const code = nanoid(10, CODE_CHARS);
+  const saved = { hash: await hashCode(user.slug, code), tries: 0, expires: Date.now() + CODE_SECONDS * 1000 };
+  await env.WRK_KV.put(`code:${user.slug}`, JSON.stringify(saved), { expirationTtl: CODE_SECONDS });
+  return json({ code: `${code.slice(0, 5)}-${code.slice(5)}` }, 200, corsHeaders);
+}
+
+// Claims a new account or resets a forgotten password. Both need a one-time code from the admin page.
 async function setupAccount(req, env, corsHeaders) {
   const body = await req.json().catch(() => null);
-  if (!body?.slug || !body?.password) return err('slug and password required', 400, corsHeaders);
+  if (!body?.username || !body?.code || typeof body.password !== 'string')
+    return err('username, code and password required', 400, corsHeaders);
   if (body.password.length < 8) return err('password must be at least 8 characters', 400, corsHeaders);
 
-  const slug = body.slug.trim();
-  const user = await env.WRK_KV.get(`user:${slug}`, { type: 'json' });
-  if (!user) return err('no account found for that slug', 404, corsHeaders);
-  if (user.passwordHash) return err('account already claimed', 409, corsHeaders);
+  // The same answer for every failure, so this can't be used to find out who has an account or a code.
+  const refused = err('invalid username or code', 401, corsHeaders);
+  const { key, user } = await findUser(env, body.username);
+  if (!user) return refused;
+  const codeKey = `code:${user.slug}`;
+  const saved = await env.WRK_KV.get(codeKey, { type: 'json' });
+  if (!saved || Date.now() > saved.expires) return refused;
+
+  const typed = String(body.code).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (await hashCode(user.slug, typed) !== saved.hash) {
+    // ponytail: KV is eventually consistent, so this count is approximate. The code's 49 bits and the rate limit do the real work.
+    if (saved.tries + 1 >= CODE_TRIES) await env.WRK_KV.delete(codeKey);
+    else await env.WRK_KV.put(codeKey, JSON.stringify({ ...saved, tries: saved.tries + 1 }), { expirationTtl: CODE_SECONDS });
+    return refused;
+  }
 
   const salt = nanoid(16);
   const passwordHash = await hashPassword(body.password, salt);
-  const updated = { ...user, passwordHash, salt };
-  await env.WRK_KV.put(`user:${slug}`, JSON.stringify(updated));
+  await env.WRK_KV.put(key, JSON.stringify({ ...user, passwordHash, salt }));
+  await env.WRK_KV.delete(codeKey);
+  if (user.passwordHash)
+    await env.WRK_KV.put(`revoked:${user.slug}`, String(Math.floor(Date.now() / 1000)), { expirationTtl: SESSION_MAX_SECONDS });
 
-  const token = await signJWT(
-    sessionClaims(user),
-    env.JWT_SECRET
-  );
-
-  return json({ token, username: user.username, slug: user.slug }, 200, corsHeaders);
+  const token = await signJWT(sessionClaims(user), env.JWT_SECRET);
+  return json({ token, username: user.username, slug: user.slug, firstTime: !user.passwordHash }, 200, corsHeaders);
 }
 
 async function register(req, env, corsHeaders) {
@@ -547,6 +591,7 @@ async function deleteUser(slug, req, env, corsHeaders) {
   if (profile) await env.WRK_KV.delete(`profile:${slug}`);
   await env.WRK_KV.delete(`visits:${slug}`);
   await env.WRK_KV.delete(`prefs:${slug}`);
+  await env.WRK_KV.delete(`code:${slug}`);
 
   if (!profile && !foundUser) return err('account not found', 404, corsHeaders);
   return json({ deleted: slug }, 200, corsHeaders);
@@ -824,6 +869,7 @@ export default {
 
     // Admin
     if (req.method === 'GET'    && path === '/admin/users')              return listUsers(req, env, corsHeaders);
+    if (req.method === 'POST'   && path === '/admin/code')               return issueCode(req, env, corsHeaders);
     if (req.method === 'DELETE' && path.startsWith('/admin/user/'))     return deleteUser(path.slice(12), req, env, corsHeaders);
     if (req.method === 'PUT'    && path === '/admin/uid')               return setUid(req, env, corsHeaders);
     if (req.method === 'PUT'  && path.startsWith('/admin/badges/')) return putBadges(path.slice(14), req, env, corsHeaders);
