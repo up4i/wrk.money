@@ -111,6 +111,12 @@ function startNetwork() {
             links: { enable: true, distance: 150, color: '#7dfcc6', opacity: 0.16, width: 1 },
             move: { enable: true, speed: 0.6, outModes: { default: 'out' } },
         },
+        // The canvas ignores the pointer so links stay clickable, so hover is read from the window.
+        interactivity: {
+            detectsOn: 'window',
+            events: { onHover: { enable: true, mode: 'grab' } },
+            modes: { grab: { distance: 150, links: { opacity: 0.55 } } },
+        },
     });
     document.head.appendChild(script);
 }
