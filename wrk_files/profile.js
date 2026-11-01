@@ -115,7 +115,7 @@ function applyProfile(p) {
     };
     addUnderName('profile-status', p.status);
     addUnderName('profile-aka', formatAka(p.aka));
-    addPinnedGifts(p.pinnedGifts, box => document.querySelector('.console-footer').before(box));
+    addPinnedGifts(p.pinnedGifts, box => (document.querySelector('.audio-box') || document.querySelector('header')).after(box));
 
     const prompt = document.querySelector('.enter-text');
     if (prompt) {
