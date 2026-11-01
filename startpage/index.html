@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=2">
     <style>
         .main { position: relative; z-index: 1; min-height: calc(100vh - 190px); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .date-line { color: var(--muted); font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
@@ -27,7 +27,7 @@
         @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
         .shortcuts-toggle { position: fixed; bottom: 28px; right: 20px; z-index: 50; width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(10,10,10,0.6); backdrop-filter: blur(8px); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .shortcuts-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
-        .shortcuts-panel { position: fixed; bottom: 70px; right: 20px; z-index: 50; width: 220px; background: rgba(10,10,10,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 16px 18px; backdrop-filter: blur(16px); opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .shortcuts-panel { position: fixed; bottom: 70px; right: 20px; z-index: 50; width: 220px; max-height: calc(100vh - 170px); overflow-y: auto; background: rgba(10,10,10,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 16px 18px; backdrop-filter: blur(16px); opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
         .shortcuts-panel.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
         .shortcuts-label { font-size: 0.72rem; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; color: var(--muted); }
         .shortcut-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.72rem; color: var(--muted); }
@@ -38,7 +38,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=2"></script>
+<script src="/wrk_files/site.js?v=3"></script>
 
 <main class="main">
     <div class="date-line" id="date-line">loading...</div>
@@ -74,6 +74,8 @@
 <div class="console-footer">STARTPAGE // WRK_00</div>
 
 <script>
+const prefs = sitePrefs();
+
 // ── Clock & Date ───────────────────────────────────────────────────────────
 function updateClock() {
     const now = new Date();
@@ -81,11 +83,12 @@ function updateClock() {
     document.getElementById('date-line').textContent =
         `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
 
-    let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
-    const ampm = h >= 12 ? 'pm' : 'am';
-    h = h % 12 || 12;
-    document.getElementById('clock').textContent =
-        `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ampm}`;
+    const pad = n => String(n).padStart(2, '0');
+    const hours = now.getHours();
+    const time = prefs.clock === '24h' ? pad(hours) : hours % 12 || 12;
+    const seconds = prefs.clockSeconds === false ? '' : `:${pad(now.getSeconds())}`;
+    const suffix = prefs.clock === '24h' ? '' : ` ${hours >= 12 ? 'pm' : 'am'}`;
+    document.getElementById('clock').textContent = `${time}:${pad(now.getMinutes())}${seconds}${suffix}`;
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -131,7 +134,8 @@ function type() {
     }
     setTimeout(type, speed);
 }
-type();
+if (prefs.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches) tEl.textContent = phrases[tIdx];
+else type();
 
 // ── Search shortcuts ───────────────────────────────────────────────────────
 const shortcutMap = {
@@ -145,6 +149,19 @@ const shortcutMap = {
     '?s':  'https://spacemail.com',
 };
 
+// A member's own quick commands, which can replace the built-in ones.
+const shortcutsPanel = document.getElementById('shortcuts-panel');
+for (const { key, url } of prefs.commands || []) {
+    shortcutMap[key] = url;
+    [...shortcutsPanel.querySelectorAll('.shortcut-key')].find(item => item.textContent === key)?.parentElement.remove();
+    const row = shortcutsPanel.appendChild(document.createElement('div'));
+    row.className = 'shortcut-row';
+    const label = row.appendChild(document.createElement('span'));
+    label.className = 'shortcut-key';
+    label.textContent = key;
+    row.append(` ${new URL(url).hostname.replace(/^www\./, '')}`);
+}
+
 const searchForm = document.getElementById('search-form');
 const searchInput = document.getElementById('search-input');
 const suggBox = document.getElementById('suggestions');
@@ -156,25 +173,23 @@ searchForm.addEventListener('submit', e => {
 });
 
 // ── Autocomplete ───────────────────────────────────────────────────────────
-searchInput.addEventListener('input', () => {
+let suggestRequest = 0;
+searchInput.addEventListener('input', async () => {
     const q = searchInput.value;
-    if (q.length < 2 || q.startsWith('?')) { suggBox.style.display = 'none'; return; }
-    const s = document.createElement('script');
-    s.src = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(q)}&callback=showSugg`;
-    document.body.appendChild(s);
-    document.body.removeChild(s);
-});
-
-window.showSugg = data => {
-    const results = data[1].slice(0, 5);
-    if (!results.length) { suggBox.style.display = 'none'; return; }
-    suggBox.innerHTML = results.map(s => `<div class="suggestion-item">${s}</div>`).join('');
-    suggBox.style.display = 'block';
+    const request = ++suggestRequest;
+    if (prefs.suggestions === false || q.length < 2 || q.startsWith('?')) { suggBox.style.display = 'none'; return; }
+    const results = await fetch(`${SITE_API}/suggest?q=${encodeURIComponent(q)}`).then(res => res.json()).catch(() => []);
+    if (request !== suggestRequest) return;
+    suggBox.replaceChildren(...results.map(result => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.textContent = result;
+        item.addEventListener('click', () => { searchInput.value = result; searchForm.submit(); });
+        return item;
+    }));
+    suggBox.style.display = results.length ? 'block' : 'none';
     selIdx = -1;
-    suggBox.querySelectorAll('.suggestion-item').forEach(item => {
-        item.addEventListener('click', () => { searchInput.value = item.textContent; searchForm.submit(); });
-    });
-};
+});
 
 searchInput.addEventListener('keydown', e => {
     const items = suggBox.querySelectorAll('.suggestion-item');

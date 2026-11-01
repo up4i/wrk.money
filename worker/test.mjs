@@ -5,7 +5,8 @@ import vm from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const asModule = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
-const source = read('./src/index.js').replace('./security.js', asModule(read('./src/security.js')));
+const security = asModule(read('./src/security.js'));
+const source = read('./src/index.js').replace('./security.js', security).replace('./prefs.js', asModule(read('./src/prefs.js').replace('./security.js', security)));
 const worker = (await import(asModule(source))).default;
 
 function makeEnv(seed = {}) {
@@ -278,6 +279,57 @@ globalThis.fetch = realFetch;
   for (const field of ['avatar', 'ogImage', 'bgUrl']) assert.equal((await save({ [field]: 'javascript:alert(1)' })).status, 400, field);
   assert.equal((await save({ musicEnabled: true, musicUrl: 'data:audio/wav,x' })).status, 400);
   assert.equal((await save({ avatar: 'mailto:a@b.c' })).status, 400, 'media must be http');
+}
+
+// Site settings are private, validated, and come back at login and on every page.
+{
+  const env = makeEnv({
+    'user:foo': JSON.stringify({ username: 'foo', slug: 'foo', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }),
+    'profile:foo': JSON.stringify({ slug: 'foo', displayName: 'foo' }),
+  });
+  const login = await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json();
+  assert.equal(login.prefs, null, 'new members have no settings yet');
+  const auth = { Authorization: `Bearer ${login.token}` };
+  const save = async body => (await call(env, 'https://api.wrk.money/auth/prefs', { method: 'PUT', headers: auth, body: JSON.stringify(body) })).json();
+
+  const first = await save({ theme: 'ocean', accent: '#ff0000', background: 'calm', motion: 'reduced', clock: '24h', clockSeconds: false, suggestions: false, landing: 'tools',
+    commands: [{ key: 'GH', url: 'github.com' }, { key: '?bad key', url: 'https://x.com' }, { key: 'x', url: 'javascript:alert(1)' }] });
+  assert.equal(first.theme, 'ocean');
+  assert.equal(first.clockSeconds, false);
+  assert.equal(first.commands.length, 1, 'bad commands are dropped');
+  assert.equal(first.commands[0].key, '?gh');
+  assert.equal(first.commands[0].url, 'https://github.com');
+
+  assert.equal((await save({ accent: ['#00ff00'] })).accent, '#ff0000', 'only a plain colour counts');
+  const tampered = await save({ theme: 'x}body{display:none', accent: 'red;}', background: 'nope', motion: 1, landing: 'https://evil.example', extra: 'field' });
+  assert.equal(tampered.theme, 'ocean', 'unknown values keep what is saved');
+  assert.equal(tampered.accent, '#ff0000');
+  assert.equal(tampered.landing, 'tools');
+  assert.equal(tampered.extra, undefined);
+  assert.equal((await save({ accent: null })).accent, null, 'a custom colour can be cleared');
+
+  const me = await (await call(env, 'https://api.wrk.money/auth/me', { headers: auth })).json();
+  assert.equal(me.prefs.theme, 'ocean');
+  assert.equal((await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json()).prefs.landing, 'tools');
+
+  const profile = await (await call(env, 'https://api.wrk.money/profile/foo')).json();
+  assert.equal(profile.prefs, undefined, 'settings are not on the public profile');
+  assert.equal((await call(env, 'https://api.wrk.money/auth/prefs', { method: 'PUT', body: '{}' })).status, 401);
+}
+
+// Suggestions come through the worker, so the visitor never talks to Google.
+{
+  const env = makeEnv();
+  const asked = [];
+  globalThis.fetch = async url => { asked.push(String(url)); return new Response(JSON.stringify(['q', ['one', 'two', 3, 'four', 'five', 'six', 'seven']])); };
+  const results = await (await call(env, 'https://api.wrk.money/suggest?q=ju ice')).json();
+  assert.equal(results.join(), 'one,two,four,five,six');
+  assert.match(asked[0], /suggestqueries\.google\.com.*q=ju%20ice/);
+  assert.equal((await (await call(env, 'https://api.wrk.money/suggest?q=j')).json()).length, 0, 'one letter asks nothing');
+  assert.equal(asked.length, 1);
+  globalThis.fetch = async () => { throw new Error('down'); };
+  assert.equal((await (await call(env, 'https://api.wrk.money/suggest?q=juice')).json()).length, 0, 'an outage just shows nothing');
+  globalThis.fetch = realFetch;
 }
 
 // Sessions last a week, renew while used, and stop at the 30-day limit.

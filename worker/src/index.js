@@ -1,4 +1,5 @@
 import { safeLink, securePage } from './security.js';
+import { cleanPrefs } from './prefs.js';
 
 const LIMITS = {
   storageBytes: 10 * 1024 * 1024 * 1024,
@@ -17,7 +18,7 @@ const RESERVED_SLUGS = new Set([
   '$', '$$', '$$$', 'insanity', 'startpage', 'tools', '404',
   'p', 'd', 's', 'login', 'admin', 'settings', 'profile',
   'wrk_files', 'api', 'index', 'favicon', 'cname', 'readme',
-  'auth', 'usage', 'robots.txt', 'sitemap.xml', 'assets', 'directory',
+  'auth', 'usage', 'robots.txt', 'sitemap.xml', 'assets', 'directory', 'site-settings',
 ]);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -303,7 +304,8 @@ async function login(req, env, corsHeaders, ctx) {
     await env.WRK_KV.put(key, JSON.stringify({ ...user, passwordHash }));
   })());
 
-  return json({ token, username: user.username, slug: user.slug }, 200, corsHeaders);
+  const prefs = await env.WRK_KV.get(`prefs:${user.slug}`, { type: 'json' });
+  return json({ token, username: user.username, slug: user.slug, prefs }, 200, corsHeaders);
 }
 
 async function setupAccount(req, env, corsHeaders) {
@@ -371,7 +373,8 @@ async function getMe(req, env, corsHeaders) {
   const payload = await requireAuth(req, env);
   if (!payload) return err('unauthorized', 401, corsHeaders);
   const profile = await env.WRK_KV.get(`profile:${payload.slug}`, { type: 'json' });
-  const me = { username: payload.username, slug: payload.slug, profile };
+  const prefs = await env.WRK_KV.get(`prefs:${payload.slug}`, { type: 'json' });
+  const me = { username: payload.username, slug: payload.slug, profile, prefs };
 
   // Renew once a token is a day old, so active members stay logged in.
   const now = Math.floor(Date.now() / 1000);
@@ -380,6 +383,27 @@ async function getMe(req, env, corsHeaders) {
     me.token = await signJWT({ ...payload, exp: Math.min(now + SESSION_SECONDS, limit) }, env.JWT_SECRET);
 
   return json(me, 200, corsHeaders);
+}
+
+async function savePrefs(req, env, corsHeaders) {
+  const payload = await requireAuth(req, env);
+  if (!payload) return err('unauthorized', 401, corsHeaders);
+  const body = await req.json().catch(() => null);
+  if (!body) return err('invalid json', 400, corsHeaders);
+  const key = `prefs:${payload.slug}`;
+  const prefs = cleanPrefs(body, await env.WRK_KV.get(key, { type: 'json' }) || {});
+  await env.WRK_KV.put(key, JSON.stringify(prefs));
+  return json(prefs, 200, corsHeaders);
+}
+
+// Search suggestions pass through here so Google never sees a visitor's IP or keystrokes.
+async function suggest(query, corsHeaders) {
+  const q = (query || '').slice(0, 100);
+  if (q.length < 2) return json([], 200, corsHeaders);
+  const res = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&oe=utf8&q=${encodeURIComponent(q)}`).catch(() => null);
+  const data = res?.ok ? await res.json().catch(() => null) : null;
+  const results = Array.isArray(data?.[1]) ? data[1].filter(item => typeof item === 'string').slice(0, 5) : [];
+  return json(results, 200, { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' });
 }
 
 // ── Profile endpoints ─────────────────────────────────────────────────────────
@@ -511,6 +535,7 @@ async function deleteUser(slug, req, env, corsHeaders) {
 
   if (profile) await env.WRK_KV.delete(`profile:${slug}`);
   await env.WRK_KV.delete(`visits:${slug}`);
+  await env.WRK_KV.delete(`prefs:${slug}`);
 
   if (!profile && !foundUser) return err('account not found', 404, corsHeaders);
   return json({ deleted: slug }, 200, corsHeaders);
@@ -772,6 +797,8 @@ export default {
     if (req.method === 'POST' && path === '/auth/register') return register(req, env, corsHeaders);
     if (req.method === 'POST' && path === '/auth/setup')    return setupAccount(req, env, corsHeaders);
     if (req.method === 'GET'  && path === '/auth/me')       return getMe(req, env, corsHeaders);
+    if (req.method === 'PUT'  && path === '/auth/prefs')    return savePrefs(req, env, corsHeaders);
+    if (req.method === 'GET'  && path === '/suggest')       return suggest(url.searchParams.get('q'), corsHeaders);
 
     // Profiles
     if (req.method === 'GET' && path.startsWith('/profile/'))

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=1">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=2">
     <style>
         .container { position: relative; width: 100%; max-width: 480px; z-index: 1; text-align: center; }
         .file-card { background: var(--glass); border: 1px solid var(--border); border-radius: 8px; padding: 36px 28px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); margin-bottom: 16px; }
@@ -15,7 +15,7 @@
         .file-name-display { font-size: 0.9rem; opacity: 0.85; margin-bottom: 8px; word-break: break-all; }
         .file-meta { font-size: 0.72rem; letter-spacing: 0.5px; margin-bottom: 28px; color: var(--muted); }
         .download-btn { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 0.5px; text-transform: lowercase; padding: 12px 32px; border-radius: 8px; cursor: pointer; transition: all 0.2s; text-decoration: none; background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent); font-weight: 700; }
-        .download-btn:hover { filter: brightness(1.1); box-shadow: 0 8px 26px -8px rgba(0, 255, 136, 0.7); }
+        .download-btn:hover { filter: brightness(1.1); box-shadow: 0 8px 26px -8px rgba(var(--accent-rgb), 0.7); }
         .expires-label { font-size: 0.72rem; letter-spacing: 1px; margin-top: 14px; color: var(--muted); }
         .loading { font-size: 0.75rem; letter-spacing: 0.5px; padding: 60px 0; color: var(--muted); }
         .error-state { display: none; }
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=2"></script>
+<script src="/wrk_files/site.js?v=3"></script>
 
 <div class="container">
     <a href="/tools/fileshare" class="back-link">← file share</a>
