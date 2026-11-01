@@ -335,12 +335,6 @@
             <img src="/wrk_files/pulsepfp.png" alt="pulse" class="pfp">
             <div class="name-row">
                 <h1>pulse</h1>
-                <div class="badge-container" data-gift="1">
-                    <a href="https://t.me/nft/CupidCharm-22005">
-                        <img src="/wrk_files/cupid_charm.gif" alt="Cupid Charm" class="badge-img">
-                    </a>
-                    <span class="tooltip">Cupid Charm #22005</span>
-                </div>
                 <div class="badge-container" data-system="1">
                     <img src="/wrk_files/badge-admin.svg" alt="Administrator" class="badge-img">
                     <span class="tooltip">administrator</span>
@@ -384,7 +378,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
-    <script src="/wrk_files/gift.js?v=2"></script>
+    <script src="/wrk_files/gift.js?v=3"></script>
     <script src="/wrk_files/code-rain.js?v=2"></script>
     <script>
         const audio = document.getElementById('audio');
@@ -517,7 +511,7 @@
                             document.querySelector('.name-row').appendChild(div);
                         });
                     }
-                    addGiftBadge(p.tgGiftUrl, el => document.querySelector('.name-row h1').after(el));
+                    addGiftBadge(p.tgGiftUrl || 'https://t.me/nft/CupidCharm-22005', el => document.querySelector('.name-row h1').after(el));
                     if (p.bioStatements?.length) { phrases = p.bioStatements; pIdx = 0; cIdx = 0; isDeleting = false; }
                     if (p.musicEnabled && p.musicUrl) {
                         audio.src = p.musicUrl;

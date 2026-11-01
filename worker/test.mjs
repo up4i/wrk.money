@@ -190,6 +190,13 @@ globalThis.fetch = realFetch;
   assert.equal(page.parseGift('t.me/nft/SnoopDogg-4405?ref=1').url, 'https://t.me/nft/SnoopDogg-4405');
   for (const bad of [null, '', 'https://evil.example/nft/Foo-1', 'https://t.me/nft/Foo', 'https://t.me/nft/Fo"o-1'])
     assert.equal(page.parseGift(bad), null);
+
+  const card = { w: 512, layers: [{ nm: 'Gift', ks: { s: { k: [63, 63, 100] } } }, { nm: 'Pattern' }, { nm: 'Color Icon' }, { nm: 'Background' }] };
+  const model = page.giftModelOnly(card);
+  assert.equal(model.w, 512);
+  assert.equal(model.layers.map(l => l.nm).join(), 'Gift');
+  assert.equal(model.layers[0].ks.s.k.join(), '100,100,100');
+  assert.throws(() => page.giftModelOnly({ layers: [{ nm: 'Background' }] }));
 }
 
 console.log('all checks passed');

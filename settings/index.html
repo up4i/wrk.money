@@ -255,7 +255,7 @@
             <div class="hint">paste the t.me/nft link of any telegram gift — shows as a badge next to your name</div>
         </div>
         <div id="gift-preview" style="display:none;margin-top:10px;align-items:center;gap:10px">
-            <img id="gift-preview-img" style="width:40px;height:40px;object-fit:cover" alt="gift preview" onload="this.style.opacity=''" onerror="this.style.opacity='0.2'">
+            <div id="gift-preview-model" style="width:48px;height:48px;flex-shrink:0"></div>
             <span id="gift-preview-name" style="font-size:0.7rem;opacity:0.4;letter-spacing:1px"></span>
         </div>
     </div>
@@ -291,7 +291,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
-<script src="/wrk_files/gift.js?v=2"></script>
+<script src="/wrk_files/gift.js?v=3"></script>
 <script>
     tsParticles.load("tsparticles", {
         particles: {
@@ -463,20 +463,22 @@
 
     function updateGiftPreview(url) {
         const gift = parseGift(url);
-        const preview = document.getElementById('gift-preview');
-        if (gift) {
-            document.getElementById('gift-preview-img').src = gift.image;
-            document.getElementById('gift-preview-name').textContent = gift.label;
-            preview.style.display = 'flex';
-        } else {
-            preview.style.display = 'none';
-        }
+        const slot = document.getElementById('gift-preview-model');
+        window.lottie?.destroy();
+        slot.replaceChildren();
+        document.getElementById('gift-preview').style.display = gift ? 'flex' : 'none';
+        if (!gift) return;
+        document.getElementById('gift-preview-name').textContent = gift.label;
+        // A new element each time, so a slow earlier link can't draw into this one.
+        const model = slot.appendChild(document.createElement('div'));
+        model.style.height = '100%';
+        drawGiftModel(model, gift).catch(() => model.remove());
     }
 
     document.getElementById('tgGiftUrl').addEventListener('input', e => updateGiftPreview(e.target.value.trim()));
     document.getElementById('gift-clear-btn').addEventListener('click', () => {
         document.getElementById('tgGiftUrl').value = '';
-        document.getElementById('gift-preview').style.display = 'none';
+        updateGiftPreview('');
     });
 
     // ── Accent color ─────────────────────────────────────────────────────────

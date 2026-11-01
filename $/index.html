@@ -362,12 +362,6 @@
             <img src="/wrk_files/giphy.gif" alt="ogkush" class="pfp">
             <div class="name-row">
                 <h1>ogkush</h1>
-                <div class="badge-container" data-gift="1">
-                    <a href="https://t.me/nft/ScaredCat-16534">
-                        <img src="/wrk_files/scaredcat.gif" alt="Scared Cat" class="badge-img">
-                    </a>
-                    <span class="tooltip">Scared Cat #16534</span>
-                </div>
                 <div class="badge-container" data-system="1">
                     <img src="/wrk_files/badge-developer.svg" alt="Developer" class="badge-img">
                     <span class="tooltip">developer</span>
@@ -418,7 +412,7 @@
     <div id="copy-toast">address copied</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js"></script>
-    <script src="/wrk_files/gift.js?v=2"></script>
+    <script src="/wrk_files/gift.js?v=3"></script>
     <script src="/wrk_files/code-rain.js?v=2"></script>
     <script>
         const audio = document.getElementById('audio');
@@ -553,7 +547,7 @@
                             document.querySelector('.name-row').appendChild(div);
                         });
                     }
-                    addGiftBadge(p.tgGiftUrl, el => document.querySelector('.name-row h1').after(el));
+                    addGiftBadge(p.tgGiftUrl || 'https://t.me/nft/ScaredCat-16534', el => document.querySelector('.name-row h1').after(el));
                     if (p.bioStatements?.length) { phrases = p.bioStatements; pIdx = 0; cIdx = 0; isDeleting = false; }
                     if (p.musicEnabled && p.musicUrl) {
                         audio.src = p.musicUrl;
