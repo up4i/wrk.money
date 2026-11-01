@@ -12,6 +12,8 @@
         .container { max-width: 720px; }
         body { padding-bottom: 110px; }
         .card { scroll-margin-top: 130px; }
+        #pinned-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 300px; }
+        #pinned-preview img { width: 100%; border-radius: 10px; }
         .jump-nav { position: sticky; top: calc(var(--nav-height) + 8px); z-index: 20; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 6px; margin-bottom: 16px; background: rgba(16, 19, 26, 0.86); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
         .jump-nav::-webkit-scrollbar { display: none; }
         .jump-nav a { flex-shrink: 0; padding: 6px 11px; border-radius: 7px; color: var(--muted); font-size: 0.75rem; font-weight: 700; text-decoration: none; }
@@ -87,6 +89,7 @@
         <a href="#s-embed">embed</a>
         <a href="#s-music">music</a>
         <a href="#s-gift">gift</a>
+        <a href="#s-pinned">pinned</a>
         <a href="#s-bio">bio</a>
         <a href="#s-links">links</a>
         <a href="#s-footer">footer</a>
@@ -330,6 +333,17 @@
         </div>
     </div>
 
+    <!-- Pinned Collection -->
+    <div class="card" id="s-pinned">
+        <div class="section-title">pinned collection <span style="color:var(--muted)">(optional)</span></div>
+        <div class="field">
+            <label for="pinnedGifts">gift links</label>
+            <textarea id="pinnedGifts" rows="6" placeholder="https://t.me/nft/CupidCharm-1234"></textarea>
+            <div class="hint">up to 6 t.me/nft links, one per line · shows as a box on your profile</div>
+        </div>
+        <div id="pinned-preview"></div>
+    </div>
+
     <!-- Bio Statements -->
     <div class="card" id="s-bio">
         <div class="section-title">bio statements <span style="color:var(--muted)">(cycles with typewriter)</span></div>
@@ -360,8 +374,8 @@
     </div>
 </div>
 
-<script src="/wrk_files/gift.js?v=5"></script>
-<script src="/wrk_files/profile.js?v=3"></script>
+<script src="/wrk_files/gift.js?v=6"></script>
+<script src="/wrk_files/profile.js?v=4"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -542,6 +556,21 @@
         updateGiftPreview('');
     });
 
+    // ── Pinned collection ─────────────────────────────────────────────────────
+
+    const pinnedLinks = () => document.getElementById('pinnedGifts').value.split(/\s+/).filter(Boolean);
+
+    function updatePinnedPreview() {
+        document.getElementById('pinned-preview').replaceChildren(...pinnedLinks().map(parseGift).filter(Boolean).slice(0, 6).map(gift => {
+            const img = new Image();
+            img.src = gift.image; img.alt = gift.label; img.title = gift.label;
+            img.onerror = () => img.remove();
+            return img;
+        }));
+    }
+
+    document.getElementById('pinnedGifts').addEventListener('input', updatePinnedPreview);
+
     // ── Accent color ─────────────────────────────────────────────────────────
 
     let accentEnabled = false;
@@ -666,6 +695,7 @@
             ogDescription: document.getElementById('ogDescription').value.trim() || null,
             ogImage: document.getElementById('ogImage').value.trim() || null,
             tgGiftUrl: document.getElementById('tgGiftUrl').value.trim() || null,
+            pinnedGifts: pinnedLinks(),
             aka: document.getElementById('aka').value.split(',').map(name => name.trim()).filter(Boolean),
             status: document.getElementById('profileStatus').value.trim(),
             enterText: document.getElementById('enterText').value.trim(),
@@ -688,7 +718,7 @@
     // A shadow root keeps the profile's styles from touching this page, and the reverse.
     const lookPreview = document.getElementById('look-preview').attachShadow({ mode: 'open' });
     lookPreview.innerHTML = `
-        <link rel="stylesheet" href="/wrk_files/profile.css?v=2">
+        <link rel="stylesheet" href="/wrk_files/profile.css?v=3">
         <style>
             :host { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); display: block; color: #fff; font-family: 'JetBrains Mono', monospace; }
             * { box-sizing: border-box; margin: 0; }
@@ -831,6 +861,9 @@
                 document.getElementById('tgGiftUrl').value = profile.tgGiftUrl;
                 updateGiftPreview(profile.tgGiftUrl);
             }
+
+            document.getElementById('pinnedGifts').value = (profile.pinnedGifts || []).join('\n');
+            updatePinnedPreview();
 
             (profile.bioStatements || []).forEach(s => addBioRow(s));
             (profile.tabs || []).forEach(t => addTabCard(t));

@@ -157,10 +157,10 @@ const realFetch = globalThis.fetch;
   let fragment = async () => new Response('{}');
   globalThis.fetch = async url => { lookups.push(String(url)); return fragment(); };
 
-  const save = tgGiftUrl => call(env, 'https://api.wrk.money/profile/foo', {
+  const save = (tgGiftUrl, pinnedGifts) => call(env, 'https://api.wrk.money/profile/foo', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ displayName: 'foo', avatar: 'a.png', bioStatements: ['hi'], tgGiftUrl }),
+    body: JSON.stringify({ displayName: 'foo', avatar: 'a.png', bioStatements: ['hi'], tgGiftUrl, pinnedGifts }),
   });
 
   assert.equal((await save('https://t.me/nft/ScaredCat-845')).status, 200);
@@ -168,7 +168,7 @@ const realFetch = globalThis.fetch;
 
   const pasted = await (await save('t.me/nft/SnoopDogg-4405?ref=1')).json();
   assert.equal(pasted.tgGiftUrl, 'https://t.me/nft/SnoopDogg-4405');
-  assert.equal(lookups.at(-1), 'https://nft.fragment.com/gift/snoopdogg-4405.json');
+  assert.equal(lookups.at(-1), 'https://nft.fragment.com/gift/snoopdogg-4405.webp');
 
   fragment = async () => new Response('nope', { status: 404 });
   assert.equal((await save('https://t.me/nft/ScaredCat-99999999')).status, 400);
@@ -181,6 +181,31 @@ const realFetch = globalThis.fetch;
 
   const cleared = await (await save('')).json();
   assert.equal(cleared.tgGiftUrl, null);
+
+  // Pinned gifts follow the same rules, and only new links are looked up.
+  fragment = async () => new Response('{}');
+  lookups.length = 0;
+  const pinned = await (await save('', ['t.me/nft/ScaredCat-845?ref=1', 'https://t.me/nft/SnoopDogg-4405', 'https://t.me/nft/ScaredCat-845'])).json();
+  assert.deepEqual(pinned.pinnedGifts, ['https://t.me/nft/ScaredCat-845', 'https://t.me/nft/SnoopDogg-4405']);
+  assert.equal(lookups.length, 2);
+
+  lookups.length = 0;
+  assert.equal((await save('', ['https://t.me/nft/SnoopDogg-4405'])).status, 200);
+  assert.deepEqual((await (await save('')).json()).pinnedGifts, ['https://t.me/nft/SnoopDogg-4405'], 'a save without the field keeps the pins');
+  assert.equal(lookups.length, 0, 'saved pins need no lookup');
+
+  assert.equal((await save('', Array.from({ length: 7 }, (_, i) => `https://t.me/nft/ScaredCat-${i + 1}`))).status, 400);
+  assert.equal(lookups.length, 0, 'too many pins never reach Fragment');
+  assert.equal((await save('', ['https://evil.example/nft/Foo-1'])).status, 400);
+  assert.equal((await save('', [{}])).status, 400);
+
+  fragment = async () => new Response('nope', { status: 404 });
+  assert.equal((await save('', ['https://t.me/nft/SnoopDogg-4405', 'https://t.me/nft/ScaredCat-99999999'])).status, 400);
+  assert.deepEqual(JSON.parse(env.store.get('profile:foo')).pinnedGifts, ['https://t.me/nft/SnoopDogg-4405']);
+
+  fragment = async () => { throw new Error('fragment down'); };
+  assert.equal((await save('', ['https://t.me/nft/JesterHat-27112'])).status, 200);
+  assert.deepEqual((await (await save('', [])).json()).pinnedGifts, []);
 }
 
 globalThis.fetch = realFetch;
@@ -414,6 +439,7 @@ globalThis.fetch = realFetch;
   const gift = page.parseGift('https://t.me/nft/ScaredCat-16534');
   assert.equal(gift.url, 'https://t.me/nft/ScaredCat-16534');
   assert.equal(gift.label, 'Scared Cat #16534');
+  assert.equal(gift.number, '#16,534');
   assert.equal(gift.image, 'https://nft.fragment.com/gift/scaredcat-16534.webp');
   assert.equal(gift.lottie, 'https://nft.fragment.com/gift/scaredcat-16534.lottie.json');
   assert.equal(page.parseGift('t.me/nft/SnoopDogg-4405?ref=1').url, 'https://t.me/nft/SnoopDogg-4405');
