@@ -125,19 +125,74 @@ function timeGreeting() {
     return 'good night';
 }
 
+// Backgrounds shared by profiles and the site.
+const PARTICLE_LOOKS = {
+    winter: {
+        fpsLimit: 120,
+        particles: {
+            number: { value: 150, density: { enable: true, area: 800 } },
+            color: { value: "#ffffff" }, shape: { type: "circle" },
+            opacity: { value: { min: 0.1, max: 0.8 }, animation: { enable: true, speed: 1, sync: false } },
+            size: { value: { min: 0.5, max: 3 }, animation: { enable: true, speed: 5, sync: false, startValue: "min" } },
+            move: { enable: true, speed: { min: 3, max: 10 }, direction: "top-left", outModes: { default: "out" }, attract: { enable: true, rotate: { x: 600, y: 1200 } } }
+        },
+        retina_detect: true
+    },
+    starfield: {
+        fpsLimit: 60,
+        particles: {
+            number: { value: 200 },
+            color: { value: "#ffffff" }, shape: { type: "circle" },
+            opacity: { value: { min: 0.05, max: 0.7 }, animation: { enable: true, speed: 0.4, sync: false } },
+            size: { value: { min: 0.5, max: 2.5 } },
+            links: { enable: false },
+            move: { enable: true, speed: 0.4, direction: "none", random: true, outModes: { default: "out" } }
+        },
+        interactivity: { events: {} },
+        retina_detect: true
+    },
+};
+
+function startRain(background, tint) {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'matrix-bg';
+    // Matrix draws far dimmer than code rain, so it needs less fading to show.
+    if (background === 'matrix') canvas.style.opacity = 0.85;
+    document.body.prepend(canvas);
+
+    const run =() => (background === 'matrix' ? startMatrix : startVisualizer)(tint);
+    if (window.startMatrix) return run();
+    const script = document.createElement('script');
+    script.src = '/wrk_files/code-rain.js?v=3';
+    script.onload = run;
+    document.head.appendChild(script);
+}
+
 function startNetwork() {
     const prefs = sitePrefs();
     if (prefs.background === 'off') return;
+
+    const still = prefs.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const theme = getComputedStyle(document.documentElement);
+    const accent = theme.getPropertyValue('--accent').trim();
+
+    if (prefs.background === 'matrix' || prefs.background === 'visualizer') {
+        // Falling text can't be held still, so reduced animation leaves it out.
+        if (!still) startRain(prefs.background, theme.getPropertyValue('--accent-rgb').split(',').map(Number));
+        return;
+    }
 
     const box = document.createElement('div');
     box.id = 'tsparticles';
     document.body.prepend(box);
 
     const calm = prefs.background === 'calm';
-    const still = prefs.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const theme = getComputedStyle(document.documentElement);
-    const accent = theme.getPropertyValue('--accent').trim();
-    const load = () => tsParticles.load('tsparticles', {
+    const profileLook = PARTICLE_LOOKS[prefs.background];
+    const load = () => tsParticles.load('tsparticles', profileLook ? {
+        ...profileLook,
+        fpsLimit: 60,
+        particles: { ...profileLook.particles, color: { value: ['#ffffff', accent] } },
+    } : {
         // Slow drift, so 30fps looks the same as 120 and costs a quarter of the work.
         fpsLimit: 30,
         particles: {
@@ -170,6 +225,7 @@ function startNetwork() {
 function restartNetwork() {
     window.tsParticles?.domItem(0)?.destroy();
     document.getElementById('tsparticles')?.remove();
+    document.getElementById('matrix-bg')?.remove();
     startNetwork();
 }
 

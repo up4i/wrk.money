@@ -3,7 +3,7 @@ import { safeLink } from './security.js';
 
 const CHOICES = {
   theme: ['wrk', 'money', 'ocean', 'ember', 'violet', 'rose', 'mono'],
-  background: ['network', 'calm', 'off'],
+  background: ['network', 'calm', 'winter', 'starfield', 'matrix', 'visualizer', 'off'],
   motion: ['full', 'reduced'],
   clock: ['12h', '24h'],
   landing: ['home', 'directory', 'tools', 'startpage', 'profile'],

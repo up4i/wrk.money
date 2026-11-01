@@ -55,6 +55,7 @@ a { color: inherit; }
 ::selection { background: var(--accent); color: var(--on-accent); }
 
 #tsparticles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+#matrix-bg { display: none; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5; }
 
 .container { position: relative; z-index: 1; width: 100%; margin: 0 auto; }
 

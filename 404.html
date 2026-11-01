@@ -212,7 +212,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js" integrity="sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz" crossorigin="anonymous"></script>
 <script src="/wrk_files/gift.js?v=5"></script>
-<script src="/wrk_files/code-rain.js?v=2"></script>
+<script src="/wrk_files/code-rain.js?v=3"></script>
 <script src="/wrk_files/profile.js?v=3"></script>
 <script>
     const RESERVED = new Set([
@@ -422,56 +422,6 @@
         },
         retina_detect: true
     };
-    const winterConfig = {
-        fpsLimit: 120,
-        particles: {
-            number: { value: 150, density: { enable: true, area: 800 } },
-            color: { value: "#ffffff" }, shape: { type: "circle" },
-            opacity: { value: { min: 0.1, max: 0.8 }, animation: { enable: true, speed: 1, sync: false } },
-            size: { value: { min: 0.5, max: 3 }, animation: { enable: true, speed: 5, sync: false, startValue: "min" } },
-            move: { enable: true, speed: { min: 3, max: 10 }, direction: "top-left", outModes: { default: "out" }, attract: { enable: true, rotate: { x: 600, y: 1200 } } }
-        },
-        retina_detect: true
-    };
-    const starfieldConfig = {
-        fpsLimit: 60,
-        particles: {
-            number: { value: 200 },
-            color: { value: "#ffffff" }, shape: { type: "circle" },
-            opacity: { value: { min: 0.05, max: 0.7 }, animation: { enable: true, speed: 0.4, sync: false } },
-            size: { value: { min: 0.5, max: 2.5 } },
-            links: { enable: false },
-            move: { enable: true, speed: 0.4, direction: "none", random: true, outModes: { default: "out" } }
-        },
-        interactivity: { events: {} },
-        retina_detect: true
-    };
-
-    function startMatrix() {
-        const canvas = document.getElementById('matrix-bg');
-        canvas.style.display = 'block';
-        const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-        resize();
-        window.addEventListener('resize', resize);
-        const ctx = canvas.getContext('2d');
-        const chars = '01アイウエオカキクケコサシスセソタチツテト{}[]<>/\\|';
-        const size = 13;
-        let cols = Math.floor(canvas.width / size);
-        let drops = Array.from({ length: cols }, () => Math.random() * -60);
-        setInterval(() => {
-            cols = Math.floor(canvas.width / size);
-            if (drops.length !== cols) drops = Array.from({ length: cols }, () => Math.random() * -60);
-            ctx.fillStyle = 'rgba(0,0,0,0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.font = size + 'px JetBrains Mono, monospace';
-            for (let i = 0; i < drops.length; i++) {
-                ctx.fillStyle = `rgba(255,255,255,${(Math.random() * 0.12 + 0.04).toFixed(2)})`;
-                ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * size, drops[i] * size);
-                if (drops[i] * size > canvas.height && Math.random() > 0.975) drops[i] = 0;
-                drops[i]++;
-            }
-        }, 50);
-    }
 
     function loadCustomBg(url, type) {
         document.getElementById('tsparticles').style.display = 'none';
@@ -484,7 +434,7 @@
     function loadBackground(bg) {
         if (bg === 'matrix') { startMatrix(); return; }
         if (bg === 'visualizer') { startVisualizer(); return; }
-        const cfg = { network: networkConfig, winter: winterConfig, starfield: starfieldConfig };
+        const cfg = { network: networkConfig, ...PARTICLE_LOOKS };
         tsParticles.load("tsparticles", cfg[bg] || networkConfig);
     }
 
@@ -506,6 +456,6 @@
 
     init();
 </script>
-<script src="/wrk_files/site.js?v=3" data-nav="mini"></script>
+<script src="/wrk_files/site.js?v=4" data-nav="mini"></script>
 </body>
 </html>

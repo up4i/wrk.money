@@ -307,6 +307,7 @@ globalThis.fetch = realFetch;
   assert.equal(tampered.landing, 'tools');
   assert.equal(tampered.extra, undefined);
   assert.equal((await save({ accent: null })).accent, null, 'a custom colour can be cleared');
+  for (const background of ['winter', 'starfield', 'matrix', 'visualizer']) assert.equal((await save({ background })).background, background);
 
   const me = await (await call(env, 'https://api.wrk.money/auth/me', { headers: auth })).json();
   assert.equal(me.prefs.theme, 'ocean');
