@@ -7,6 +7,7 @@ function parseGift(url) {
     return {
         url: `https://t.me/nft/${m[1]}-${m[2]}`,
         label: m[1].replace(/([a-z])([A-Z])/g, '$1 $2') + ' #' + m[2],
+        number: `#${Number(m[2]).toLocaleString('en-US')}`,
         image: `${base}.webp`,
         lottie: `${base}.lottie.json`,
     };

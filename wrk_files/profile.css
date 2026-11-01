@@ -47,6 +47,34 @@ header {
 .progress-container { height: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
 .progress-bar { background: var(--profile-accent); }
 
+.gift-box {
+    padding: 14px;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    text-align: left;
+}
+.gift-box .section-label { display: block; margin: 0 0 10px; }
+.gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gift-tile { position: relative; display: block; overflow: hidden; aspect-ratio: 1; border-radius: 10px; }
+.gift-tile img { display: block; width: 100%; height: 100%; transition: transform 0.2s; }
+.gift-tile:hover img { transform: scale(1.06); }
+/* The gift's number across the corner, as Telegram shows it. */
+.gift-tile span {
+    position: absolute;
+    top: 13px;
+    right: -30px;
+    width: 104px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    font-size: 0.55rem;
+    line-height: 1.6;
+    text-align: center;
+    transform: rotate(45deg);
+}
+
 .console-footer { font-size: 0.7rem; letter-spacing: 2px; opacity: 0.5; }
 
 /* Enter screen: the member's avatar and name above the prompt. */

@@ -17,7 +17,7 @@ function formatAka(names) {
 
 function profileCss(p, root = ':root') {
     const css = [];
-    const cards = 'header,.audio-box,.hub-btn';
+    const cards = 'header,.audio-box,.gift-box,.hub-btn';
     const noBlur = 'backdrop-filter:none;-webkit-backdrop-filter:none';
 
     const tint = isProfileColor(p.accentColor) ? p.accentColor : null;
@@ -32,7 +32,7 @@ function profileCss(p, root = ':root') {
     if (corners) css.push(`${cards}{border-radius:${corners}}`);
 
     if (p.cardStyle === 'solid') css.push(`${cards}{background:rgba(10,12,16,0.92);${noBlur}}`);
-    if (p.cardStyle === 'clear') css.push(`${cards}{background:transparent;box-shadow:none;${noBlur}}header,.audio-box{border-color:transparent}`);
+    if (p.cardStyle === 'clear') css.push(`${cards}{background:transparent;box-shadow:none;${noBlur}}header,.audio-box,.gift-box{border-color:transparent}`);
 
     if (p.buttonStyle === 'outline') css.push(`.hub-btn{background:transparent;${noBlur}}`);
     if (p.buttonStyle === 'solid') {
@@ -76,6 +76,29 @@ function startTabTitle(names) {
     })();
 }
 
+// Fragment's still cards, because six animations at once is a lot of work for a phone.
+function addPinnedGifts(urls, insert) {
+    const gifts = (urls || []).map(parseGift).filter(Boolean);
+    if (!gifts.length) return;
+
+    const box = document.createElement('section');
+    box.className = 'gift-box';
+    box.innerHTML = '<span class="section-label">pinned collection</span><div class="gift-grid"></div>';
+    const grid = box.lastChild;
+    for (const gift of gifts) {
+        const tile = grid.appendChild(document.createElement('a'));
+        tile.className = 'gift-tile';
+        tile.href = gift.url; tile.target = '_blank'; tile.rel = 'noopener';
+        tile.title = gift.label;
+        const img = tile.appendChild(new Image());
+        img.loading = 'lazy'; img.alt = gift.label;
+        img.onerror = () => { tile.remove(); if (!grid.children.length) box.remove(); };
+        img.src = gift.image;
+        tile.appendChild(document.createElement('span')).textContent = gift.number;
+    }
+    insert(box);
+}
+
 function applyProfile(p) {
     loadProfileFont(p);
     const style = document.createElement('style');
@@ -92,6 +115,7 @@ function applyProfile(p) {
     };
     addUnderName('profile-status', p.status);
     addUnderName('profile-aka', formatAka(p.aka));
+    addPinnedGifts(p.pinnedGifts, box => document.querySelector('.console-footer').before(box));
 
     const prompt = document.querySelector('.enter-text');
     if (prompt) {
