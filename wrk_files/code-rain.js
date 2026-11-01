@@ -1,6 +1,7 @@
 // Solar's Code Rain by Solartunic2009: audio-reactive background shared by the profile pages.
+// Site pages have no music, so they pass a color. Removing the canvas stops either rain.
 
-function startVisualizer() {
+function startVisualizer(tint) {
     const canvas = document.getElementById('matrix-bg');
     canvas.style.display = 'block';
     const ctx = canvas.getContext('2d');
@@ -69,7 +70,7 @@ function startVisualizer() {
 
     function drawLayer(target, layer, config) {
         target.font = `${size}px JetBrains Mono, monospace`;
-        const [r,g,b_] = hslToRgb(mids*360, 1, Math.min(0.9, 0.4 + bass*0.6));
+        const [r,g,b_] = tint || hslToRgb(mids*360, 1, Math.min(0.9, 0.4 + bass*0.6));
         const sn = snareEnergy > 0.05 ? snareEnergy*150 : 0;
         for (let i = 0; i < layer.cols; i++) {
             const drop = layer.drops[i];
@@ -94,6 +95,7 @@ function startVisualizer() {
     let lastFrame = 0;
 
     function loop(now) {
+        if (!canvas.isConnected) return;
         requestAnimationFrame(loop);
         if (now - lastFrame < FRAME_MS - 4) return;
         lastFrame = now;
@@ -123,4 +125,31 @@ function startVisualizer() {
         drawLayer(ctx, layerData[1], layers[1]);
     }
     requestAnimationFrame(loop);
+}
+
+function startMatrix(tint = [255, 255, 255]) {
+    const canvas = document.getElementById('matrix-bg');
+    canvas.style.display = 'block';
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener('resize', resize);
+    const ctx = canvas.getContext('2d');
+    const chars = '01アイウエオカキクケコサシスセソタチツテト{}[]<>/\\|';
+    const size = 13;
+    let cols = Math.floor(canvas.width / size);
+    let drops = Array.from({ length: cols }, () => Math.random() * -60);
+    const timer = setInterval(() => {
+        if (!canvas.isConnected) return clearInterval(timer);
+        cols = Math.floor(canvas.width / size);
+        if (drops.length !== cols) drops = Array.from({ length: cols }, () => Math.random() * -60);
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = size + 'px JetBrains Mono, monospace';
+        for (let i = 0; i < drops.length; i++) {
+            ctx.fillStyle = `rgba(${tint},${(Math.random() * 0.12 + 0.04).toFixed(2)})`;
+            ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * size, drops[i] * size);
+            if (drops[i] * size > canvas.height && Math.random() > 0.975) drops[i] = 0;
+            drops[i]++;
+        }
+    }, 50);
 }
