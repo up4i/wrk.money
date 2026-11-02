@@ -414,7 +414,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js" integrity="sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz" crossorigin="anonymous"></script>
     <script src="/wrk_files/gift.js?v=6"></script>
     <script src="/wrk_files/code-rain.js?v=3"></script>
-    <script src="/wrk_files/profile.js?v=6"></script>
+    <script src="/wrk_files/profile.js?v=7"></script>
     <script>
         const audio = document.getElementById('audio');
         const overlay = document.getElementById('enter-overlay');
@@ -564,6 +564,7 @@
                     if (p.footer) document.querySelector('.console-footer').textContent = p.footer;
                     if (p.background) bg = p.background;
                     if (p.bgUrl) { loadCustomBg(p.bgUrl, p.bgType || 'image'); bg = null; }
+                    syncBgToMusic(p, audio);
                     applyProfile(p);
                     if (p.visits) {
                         const vc = document.createElement('div');

@@ -157,7 +157,7 @@
         <input type="hidden" id="background" value="network">
 
         <div class="field" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
-            <label>custom background <span style="color:var(--muted)">(image or .mp4 · overrides particle selection)</span></label>
+            <label>custom background <span style="color:var(--muted)">(image or .mp4 · max 100mb · overrides particle selection)</span></label>
             <div class="upload-row" style="margin-top:8px">
                 <button class="btn" id="bg-upload-btn">upload image / video</button>
                 <span class="upload-status" id="bg-status"></span>
@@ -173,6 +173,10 @@
                 <div class="field" style="margin-top:12px;margin-bottom:0">
                     <label for="bgOpacity">background strength</label>
                     <input type="range" id="bgOpacity" min="10" max="100" step="5" value="50">
+                </div>
+                <div class="toggle-row" id="bg-sync-row" style="margin-top:12px;margin-bottom:0">
+                    <input type="checkbox" id="bgSync">
+                    <label for="bgSync">keep the video in time with my music</label>
                 </div>
                 <button class="btn" id="bg-clear-btn" style="margin-top:8px;font-size:0.72rem;border-color:rgba(255,80,80,0.3);color:rgba(255,120,120,0.7)">clear custom background</button>
             </div>
@@ -377,7 +381,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=6"></script>
-<script src="/wrk_files/profile.js?v=6"></script>
+<script src="/wrk_files/profile.js?v=7"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -402,7 +406,14 @@
 
     // ── File upload helper ────────────────────────────────────────────────────
 
+    // Cloudflare's limit covers the whole request. Past it the browser hangs with no error, so this has to catch it first.
+    const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 - 1024;
+
     function uploadFile(file, { progressWrap, progressFill, progressLabel, statusEl }, callback) {
+        if (file.size > MAX_UPLOAD_BYTES) {
+            statusEl.textContent = `too big: ${(file.size / 1024 / 1024).toFixed(1)} mb, the limit is 100 mb`;
+            return;
+        }
         progressWrap.style.display = 'block';
         progressFill.style.width = '0%';
         progressLabel.textContent = '0%';
@@ -510,6 +521,7 @@
         const img  = document.getElementById('bg-preview-img');
         const vid  = document.getElementById('bg-preview-video');
         wrap.style.display = 'block';
+        document.getElementById('bg-sync-row').style.display = type === 'video' ? 'flex' : 'none';
         if (type === 'video') {
             vid.src = url; vid.style.display = 'block'; img.style.display = 'none';
         } else {
@@ -699,6 +711,7 @@
             footer: document.getElementById('footer').value.trim(),
             bgUrl: document.getElementById('bgUrl').value.trim() || null,
             bgType: document.getElementById('bgType').value || null,
+            bgSync: document.getElementById('bgSync').checked,
             accentColor: accentEnabled ? document.getElementById('accentColor').value : null,
             ogTitle: document.getElementById('ogTitle').value.trim() || null,
             ogDescription: document.getElementById('ogDescription').value.trim() || null,
@@ -861,6 +874,7 @@
                 if (profile[id] !== undefined && profile[id] !== null) document.getElementById(id).value = profile[id];
             document.getElementById('hideVisits').checked = !!profile.hideVisits;
             document.getElementById('hideUid').checked = !!profile.hideUid;
+            document.getElementById('bgSync').checked = !!profile.bgSync;
             if (profile.nameColor) {
                 nameColorEnabled = true;
                 document.getElementById('nameColor').value = profile.nameColor;

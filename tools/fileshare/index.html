@@ -142,7 +142,16 @@
         return `${(bytes / 1024 / 1024).toFixed(1)} mb`;
     }
 
+    // Cloudflare's limit covers the whole request. Past it the browser hangs with no error, so this has to catch it first.
+    const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 - 1024;
+
     function setFile(file) {
+        if (file.size > MAX_UPLOAD_BYTES) {
+            clearSelection();
+            errorMsg.textContent = `too big: ${formatBytes(file.size)}, the limit is 100 mb`;
+            errorMsg.classList.add('visible');
+            return;
+        }
         selectedFile = file;
         fileName.textContent = file.name;
         fileSize.textContent = formatBytes(file.size);
