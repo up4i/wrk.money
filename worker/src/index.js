@@ -688,7 +688,20 @@ async function getPaste(id, env, corsHeaders) {
 
 // ── File Share ────────────────────────────────────────────────────────────────
 
+const FILE_CACHE_SECONDS = 60 * 60 * 24;
+
+// The bytes a Range header asks for, or nothing when the whole file should go out instead.
+function byteRange(header, size) {
+  const [, first, last] = /^bytes=(\d*)-(\d*)$/.exec(header) || [];
+  if (!first && !last) return;
+  const offset = first ? Number(first) : Math.max(size - Number(last), 0);
+  const end = first && last ? Math.min(Number(last), size - 1) : size - 1;
+  return { offset, length: end - offset + 1 };
+}
+
 async function uploadFile(req, env, corsHeaders) {
+  if (!await requireAuth(req, env)) return err('unauthorized', 401, corsHeaders);
+
   const formData = await req.formData().catch(() => null);
   if (!formData) return err('multipart/form-data required', 400, corsHeaders);
 
@@ -705,11 +718,12 @@ async function uploadFile(req, env, corsHeaders) {
   const ttlParam = formData.get('ttl');
   const ttlOptions = { '1d': 86400, '7d': 604800, '30d': 2592000, never: 0 };
   const ttl = ttlOptions[ttlParam] ?? 604800;
+  const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
 
   const bytes = await file.arrayBuffer();
   await env.WRK_FILES.put(id, bytes, {
     httpMetadata: { contentType: file.type || 'application/octet-stream' },
-    customMetadata: { name: file.name, size: String(file.size) },
+    customMetadata: { name: file.name, size: String(file.size), ...(expiresAt && { expiresAt: String(expiresAt) }) },
   });
 
   const meta = {
@@ -717,7 +731,7 @@ async function uploadFile(req, env, corsHeaders) {
     type: file.type || 'application/octet-stream',
     size: file.size,
     createdAt: Date.now(),
-    expiresAt: ttl ? Date.now() + ttl * 1000 : null,
+    expiresAt,
   };
   const kvOpts = ttl ? { expirationTtl: ttl } : {};
   await env.WRK_KV.put(`d:${id}`, JSON.stringify(meta), kvOpts);
@@ -733,34 +747,52 @@ async function getFileMeta(id, env, corsHeaders) {
   return json(meta, 200, corsHeaders);
 }
 
-async function getFile(id, env, corsHeaders) {
+async function getFile(id, req, env, corsHeaders, ctx) {
   const limitErr = await checkLimits(env, { classB: 1 });
   if (limitErr) return err(limitErr, 429, corsHeaders);
 
   const meta = await env.WRK_KV.get(`d:${id}`, { type: 'json' });
   if (!meta) return err('file not found or expired', 404, corsHeaders);
+  if (meta.expiresAt && Date.now() > meta.expiresAt) return err('file expired', 410, corsHeaders);
 
-  if (meta.expiresAt && Date.now() > meta.expiresAt) {
-    await env.WRK_FILES.delete(id);
-    await env.WRK_KV.delete(`d:${id}`);
-    await incrementUsage(env, { classA: 1 });
-    return err('file expired', 410, corsHeaders);
-  }
+  const maxAge = meta.expiresAt ? Math.min(FILE_CACHE_SECONDS, Math.floor((meta.expiresAt - Date.now()) / 1000)) : FILE_CACHE_SECONDS;
+  const isInline = meta.type.startsWith('image/') || meta.type.startsWith('audio/') || meta.type.startsWith('video/');
+  // Ids are never reused and files never change, so the id is all the ETag needs. Cloudflare may mark it W/ when compressing.
+  const etag = `"${id}"`;
+  const headers = {
+    'Content-Type': meta.type,
+    'Content-Disposition': isInline ? `inline; filename="${meta.name}"` : `attachment; filename="${meta.name}"`,
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': `public, max-age=${maxAge}`,
+    'ETag': etag,
+    ...corsHeaders,
+  };
+  if (req.headers.get('If-None-Match')?.includes(etag)) return new Response(null, { status: 304, headers });
 
-  const obj = await env.WRK_FILES.get(id);
-  await incrementUsage(env, { classB: 1 });
+  const range = byteRange(req.headers.get('Range'), meta.size);
+  if (range?.length <= 0) return err('range not satisfiable', 416, { ...corsHeaders, 'Content-Range': `bytes */${meta.size}` });
+
+  const obj = await env.WRK_FILES.get(id, { range });
+  ctx.waitUntil(incrementUsage(env, { classB: 1 }));
   if (!obj) return err('file not found', 404, corsHeaders);
 
-  const isInline = meta.type.startsWith('image/') || meta.type.startsWith('audio/') || meta.type.startsWith('video/');
-  return new Response(obj.body, {
-    headers: {
-      'Content-Type': meta.type,
-      'Content-Disposition': isInline ? `inline; filename="${meta.name}"` : `attachment; filename="${meta.name}"`,
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-      'X-Content-Type-Options': 'nosniff',
-      ...corsHeaders,
-    },
-  });
+  if (!range) return new Response(obj.body, { headers });
+  const contentRange = `bytes ${range.offset}-${range.offset + range.length - 1}/${meta.size}`;
+  return new Response(obj.body, { status: 206, headers: { ...headers, 'Content-Range': contentRange } });
+}
+
+// KV drops an expired file's entry by itself, but R2 keeps the object until told otherwise.
+// Only files marked with expiresAt qualify, so nothing here can touch one that's meant to stay.
+async function deleteExpiredFiles(env) {
+  let cursor;
+  do {
+    const page = await env.WRK_FILES.list({ cursor, include: ['customMetadata'] });
+    const expired = page.objects.filter(o => Number(o.customMetadata?.expiresAt) < Date.now()).map(o => o.key);
+    if (expired.length) await env.WRK_FILES.delete(expired);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
 }
 
 // ── URL Shortener ─────────────────────────────────────────────────────────────
@@ -882,7 +914,7 @@ export default {
     // File share
     if (req.method === 'POST' && path === '/d') return uploadFile(req, env, corsHeaders);
     if (req.method === 'GET'  && path.startsWith('/d/') && path.endsWith('/meta')) return getFileMeta(path.slice(3, -5), env, corsHeaders);
-    if (req.method === 'GET'  && path.startsWith('/d/')) return getFile(path.slice(3), env, corsHeaders);
+    if (req.method === 'GET'  && path.startsWith('/d/')) return getFile(path.slice(3), req, env, corsHeaders, ctx);
 
     // URL shortener API
     if (req.method === 'POST' && path === '/s') return createShortUrl(req, env, corsHeaders);
@@ -894,5 +926,9 @@ export default {
     }
 
     return err('not found', 404, corsHeaders);
+  },
+
+  scheduled(event, env) {
+    return deleteExpiredFiles(env);
   },
 };

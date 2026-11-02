@@ -488,6 +488,192 @@ globalThis.fetch = realFetch;
   Date.now = realNow;
 }
 
+// A bucket that slices ranges and pages listings like R2, and only returns metadata when asked.
+function makeBucket(pageSize = 2) {
+  const objects = new Map();
+  return {
+    objects, reads: 0,
+    async put(key, bytes, { customMetadata }) { objects.set(key, { bytes: new Uint8Array(bytes), customMetadata }); },
+    async get(key, { range } = {}) {
+      this.reads++;
+      const object = objects.get(key);
+      if (!object) return null;
+      const { offset = 0, length = object.bytes.length } = range ?? {};
+      return { body: object.bytes.slice(offset, offset + length) };
+    },
+    async list({ cursor = '', include = [] } = {}) {
+      const keys = [...objects.keys()].sort().filter(key => key > cursor);
+      const page = keys.slice(0, pageSize);
+      const truncated = keys.length > pageSize;
+      return {
+        objects: page.map(key => ({ key, ...(include.includes('customMetadata') && { customMetadata: objects.get(key).customMetadata }) })),
+        truncated, ...(truncated && { cursor: page.at(-1) }),
+      };
+    },
+    async delete(keys) { for (const key of [keys].flat()) objects.delete(key); },
+  };
+}
+
+async function fileEnv() {
+  const env = makeEnv({ 'user:foo': JSON.stringify({ username: 'foo', slug: 'foo', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }) });
+  env.WRK_FILES = makeBucket();
+  const { token } = await (await post(env, '/auth/login', { username: 'foo', password: 'pw' })).json();
+  env.auth = { Authorization: `Bearer ${token}` };
+  return env;
+}
+
+function upload(env, headers, { ttl = 'never', name = 'a.mp3', type = 'audio/mpeg', content = '0123456789' } = {}) {
+  const body = new FormData();
+  body.append('file', new File([content], name, { type }));
+  body.append('ttl', ttl);
+  return call(env, 'https://api.wrk.money/d', { method: 'POST', headers, body });
+}
+
+const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/${id}`, { headers });
+
+// Uploading needs a live session, whatever the page does.
+{
+  const env = await fileEnv();
+  for (const headers of [{}, { Authorization: 'Bearer nope' }]) {
+    const refused = await upload(env, headers);
+    assert.equal(refused.status, 401);
+    assert.equal(refused.headers.get('Access-Control-Allow-Origin'), 'https://wrk.money', 'the page can read the refusal');
+  }
+  assert.equal(env.WRK_FILES.objects.size, 0, 'a refused upload stores nothing');
+  assert.equal((await upload(env, env.auth)).status, 201);
+
+  const realNow = Date.now;
+  Date.now = () => realNow() + 5000;
+  env.store.set('revoked:foo', String(Math.floor(Date.now() / 1000)));
+  assert.equal((await upload(env, env.auth)).status, 401, 'a reset also ends the right to upload');
+  Date.now = realNow;
+}
+
+// Files answer whole, in part or as unchanged, and every answer keeps the sandbox and the cache rules.
+{
+  const env = await fileEnv();
+  const { id } = await (await upload(env, env.auth)).json();
+  const checkHeaders = res => {
+    assert.equal(res.headers.get('Content-Security-Policy'), "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    assert.equal(res.headers.get('X-Content-Type-Options'), 'nosniff');
+    assert.equal(res.headers.get('Content-Disposition'), 'inline; filename="a.mp3"');
+    assert.equal(res.headers.get('Content-Type'), 'audio/mpeg');
+    assert.equal(res.headers.get('Access-Control-Allow-Origin'), 'https://wrk.money', 'players with crossorigin need this on a 206');
+    assert.equal(res.headers.get('Accept-Ranges'), 'bytes');
+    assert.equal(res.headers.get('Cache-Control'), 'public, max-age=86400');
+    assert.equal(res.headers.get('ETag'), `"${id}"`);
+  };
+
+  const whole = await getStored(env, id);
+  assert.equal(whole.status, 200);
+  assert.equal(await whole.text(), '0123456789');
+  checkHeaders(whole);
+
+  const parts = [['bytes=2-4', '234', 'bytes 2-4/10'], ['bytes=7-', '789', 'bytes 7-9/10'], ['bytes=-2', '89', 'bytes 8-9/10'], ['bytes=0-', '0123456789', 'bytes 0-9/10'], ['bytes=4-999', '456789', 'bytes 4-9/10'], ['bytes=-999', '0123456789', 'bytes 0-9/10']];
+  for (const [Range, text, contentRange] of parts) {
+    const part = await getStored(env, id, { Range });
+    assert.equal(part.status, 206, Range);
+    assert.equal(await part.text(), text, Range);
+    assert.equal(part.headers.get('Content-Range'), contentRange);
+    checkHeaders(part);
+  }
+
+  for (const Range of ['bytes=10-', 'bytes=5-2', 'bytes=-0']) {
+    const past = await getStored(env, id, { Range });
+    assert.equal(past.status, 416, Range);
+    assert.equal(past.headers.get('Content-Range'), 'bytes */10');
+    assert.equal(past.headers.get('Access-Control-Allow-Origin'), 'https://wrk.money');
+  }
+  for (const Range of ['bytes=0-1,4-5', 'lines=1-2', 'bytes=-', 'nonsense']) {
+    const ignored = await getStored(env, id, { Range });
+    assert.equal(ignored.status, 200, Range);
+    assert.equal(await ignored.text(), '0123456789', Range);
+  }
+
+  const reads = env.WRK_FILES.reads;
+  for (const tag of [`"${id}"`, `W/"${id}"`, `"other", "${id}"`]) {
+    const same = await getStored(env, id, { 'If-None-Match': tag });
+    assert.equal(same.status, 304, tag);
+    assert.equal(await same.text(), '');
+    checkHeaders(same);
+  }
+  assert.equal(env.WRK_FILES.reads, reads, 'revalidating never touches R2');
+  assert.equal((await getStored(env, id, { 'If-None-Match': '"other"' })).status, 200);
+
+  // Anything but media still downloads, in part or whole.
+  const page = await (await upload(env, env.auth, { name: 'x.html', type: 'text/html', content: '<script>alert(1)</script>' })).json();
+  for (const headers of [{}, { Range: 'bytes=0-3' }]) {
+    const res = await getStored(env, page.id, headers);
+    assert.equal(res.headers.get('Content-Disposition'), 'attachment; filename="x.html"');
+    assert.match(res.headers.get('Content-Security-Policy'), /sandbox/);
+  }
+}
+
+// A browser's copy of a file can't outlive it, and an expired file stays gone even if the browser has it.
+{
+  const env = await fileEnv();
+  const { id } = await (await upload(env, env.auth, { ttl: '1d' })).json();
+  const entry = JSON.parse(env.store.get(`d:${id}`));
+  const expiresIn = seconds => env.store.set(`d:${id}`, JSON.stringify({ ...entry, expiresAt: Date.now() + seconds * 1000 }));
+  const asks = [{}, { Range: 'bytes=0-1' }, { 'If-None-Match': `"${id}"` }];
+  const maxAge = res => Number(res.headers.get('Cache-Control').match(/^public, max-age=(\d+)$/)[1]);
+
+  expiresIn(90);
+  for (const headers of asks) {
+    const left = maxAge(await getStored(env, id, headers));
+    assert.ok(left <= 90 && left >= 88, `max-age ${left} must end by the expiry`);
+  }
+  expiresIn(0.5);
+  assert.equal(maxAge(await getStored(env, id)), 0);
+
+  expiresIn(60 * 60 * 24 * 30);
+  assert.equal(maxAge(await getStored(env, id)), 60 * 60 * 24, 'long-lived files still revalidate daily');
+
+  expiresIn(-1);
+  for (const headers of asks) assert.equal((await getStored(env, id, headers)).status, 410);
+}
+
+// The usage count waits until the reply is out, because that KV write was most of the wait.
+{
+  const env = await fileEnv();
+  const { id } = await (await upload(env, env.auth)).json();
+  const order = [];
+  const realPut = env.WRK_KV.put;
+  env.WRK_KV.put = async (...args) => {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    order.push('usage');
+    return realPut(...args);
+  };
+  const pending = [];
+  const res = await worker.fetch(new Request(`https://api.wrk.money/d/${id}`), env, { waitUntil: p => pending.push(p) });
+  order.push('response');
+  await Promise.all(pending);
+  assert.equal(res.status, 200);
+  assert.deepEqual(order, ['response', 'usage']);
+}
+
+// The daily cleanup removes expired files from R2 and leaves everything else alone.
+{
+  const env = await fileEnv();
+  const forever = await (await upload(env, env.auth)).json();
+  const expiring = [];
+  for (let i = 0; i < 5; i++) expiring.push((await (await upload(env, env.auth, { ttl: i % 2 ? '1d' : '30d' })).json()).id);
+  await env.WRK_FILES.put('manual', new ArrayBuffer(1), { customMetadata: { name: 'put here by hand', size: '1' } });
+  await env.WRK_FILES.put('bare', new ArrayBuffer(1), {});
+
+  await worker.scheduled({}, env);
+  assert.equal(env.WRK_FILES.objects.size, 8, 'nothing has expired yet');
+
+  const realNow = Date.now;
+  Date.now = () => realNow() + 2 * 60 * 60 * 24 * 1000;
+  await worker.scheduled({}, env);
+  Date.now = realNow;
+  const dayOld = expiring.filter((_, i) => i % 2);
+  assert.ok(dayOld.every(id => !env.WRK_FILES.objects.has(id)), 'expired files go, across pages of the listing');
+  assert.equal(env.WRK_FILES.objects.size, 6);
+  for (const key of [forever.id, 'manual', 'bare']) assert.ok(env.WRK_FILES.objects.has(key), key);
+}
+
 // Pages get security headers and a nonce on every script, but a 304 keeps the cached page's policy.
 {
   const added = [];

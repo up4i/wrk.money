@@ -202,6 +202,9 @@
                     }
                 });
 
+                // Every byte has left the browser, but the worker is still storing the file.
+                xhr.upload.addEventListener('load', () => { progressLabel.textContent = 'saving...'; });
+
                 xhr.addEventListener('load', () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
                         const data = JSON.parse(xhr.responseText);

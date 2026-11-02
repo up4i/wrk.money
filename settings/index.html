@@ -120,6 +120,7 @@
             </div>
             <div class="upload-progress" id="pfp-progress">
                 <div class="upload-progress-bar"><div class="upload-progress-fill" id="pfp-progress-fill"></div></div>
+                <div class="upload-progress-label" id="pfp-progress-label"></div>
             </div>
             <div class="url-fallback">
                 <label>or paste a url</label>
@@ -164,6 +165,7 @@
             </div>
             <div class="upload-progress" id="bg-progress">
                 <div class="upload-progress-bar"><div class="upload-progress-fill" id="bg-progress-fill"></div></div>
+                <div class="upload-progress-label" id="bg-progress-label"></div>
             </div>
             <div id="bg-preview-wrap" style="display:none;margin-top:10px">
                 <img id="bg-preview-img" style="max-width:100%;max-height:110px;border-radius:4px;border:1px solid var(--border);display:none" alt="bg preview">
@@ -402,6 +404,8 @@
 
     function uploadFile(file, { progressWrap, progressFill, progressLabel, statusEl }, callback) {
         progressWrap.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressLabel.textContent = '0%';
         statusEl.textContent = 'uploading...';
         const formData = new FormData();
         formData.append('file', file);
@@ -409,17 +413,22 @@
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', 'https://api.wrk.money/d');
+        xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('wrk_token')}`);
 
         xhr.upload.addEventListener('progress', e => {
             if (e.lengthComputable) {
                 const pct = Math.round((e.loaded / e.total) * 100);
                 progressFill.style.width = `${pct}%`;
-                if (progressLabel) progressLabel.textContent = `${pct}%`;
+                progressLabel.textContent = `${pct}%`;
             }
         });
 
+        // Every byte has left the browser, but the worker is still storing the file.
+        xhr.upload.addEventListener('load', () => { statusEl.textContent = 'saving...'; });
+
         xhr.addEventListener('load', () => {
             progressWrap.style.display = 'none';
+            if (xhr.status === 401) return goLogin();
             if (xhr.status >= 200 && xhr.status < 300) {
                 const data = JSON.parse(xhr.responseText);
                 statusEl.textContent = 'uploaded ✓';
@@ -451,7 +460,7 @@
         uploadFile(file, {
             progressWrap: document.getElementById('pfp-progress'),
             progressFill: document.getElementById('pfp-progress-fill'),
-            progressLabel: null,
+            progressLabel: document.getElementById('pfp-progress-label'),
             statusEl: document.getElementById('pfp-status'),
         }, url => {
             avatarInput.value = url;
@@ -517,7 +526,7 @@
         uploadFile(file, {
             progressWrap: document.getElementById('bg-progress'),
             progressFill: document.getElementById('bg-progress-fill'),
-            progressLabel: null,
+            progressLabel: document.getElementById('bg-progress-label'),
             statusEl: document.getElementById('bg-status'),
         }, url => {
             document.getElementById('bgUrl').value = url;

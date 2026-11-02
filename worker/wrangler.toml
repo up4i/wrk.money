@@ -13,6 +13,10 @@ bucket_name = "wrk-files"
 [vars]
 ALLOWED_ORIGIN = "https://wrk.money"
 
+# Clears expired uploads out of R2.
+[triggers]
+crons = ["0 4 * * *"]
+
 [[routes]]
 pattern = "api.wrk.money/*"
 zone_name = "wrk.money"
