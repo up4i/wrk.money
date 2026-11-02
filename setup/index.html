@@ -71,6 +71,7 @@
         e.preventDefault();
         const password = passEl.value;
 
+        if (codeEl.value.replace(/[^a-z0-9]/gi, '').length < 10) return showError('a code has 10 characters, copy all of it');
         if (password !== confEl.value) return showError('passwords do not match');
         if (password.length < 8) return showError('password must be at least 8 characters');
 

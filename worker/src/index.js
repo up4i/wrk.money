@@ -218,7 +218,7 @@ const SESSION_MAX_SECONDS = 60 * 60 * 24 * 30;
 
 const CODE_SECONDS = 60 * 60;
 const CODE_TRIES = 5;
-// No 0, O, 1, I or L, so a code survives being read out or retyped.
+// No 0, O, 1, I or L, so a code survives being read out or retyped. No hyphen, so a double-click takes all of it.
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function hashCode(slug, code) {
@@ -288,12 +288,20 @@ function validateSlug(slug) {
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
-// Accounts are stored under the name they were created with, which may have capitals.
+// Accounts are stored under the name they were created with, which may have capitals,
+// and members often know their profile link better than their login name.
 async function findUser(env, name) {
   const typed = String(name).trim();
-  for (const key of new Set([`user:${typed.toLowerCase()}`, `user:${typed}`])) {
+  const wanted = typed.toLowerCase();
+  for (const key of new Set([`user:${typed}`, `user:${wanted}`])) {
     const user = await env.WRK_KV.get(key, { type: 'json' });
     if (user) return { key, user };
+  }
+  // ponytail: reads every account on an unknown name, keep a lowercase index if members reach the hundreds
+  const { keys } = await env.WRK_KV.list({ prefix: 'user:' });
+  for (const { name: key } of keys) {
+    const user = await env.WRK_KV.get(key, { type: 'json' });
+    if (user && [key.slice(5), user.username, user.slug].some(known => known?.toLowerCase() === wanted)) return { key, user };
   }
   return {};
 }
@@ -336,9 +344,9 @@ async function issueCode(req, env, corsHeaders) {
   if (!user) return err('account not found', 404, corsHeaders);
 
   const code = nanoid(10, CODE_CHARS);
-  const saved = { hash: await hashCode(user.slug, code), tries: 0, expires: Date.now() + CODE_SECONDS * 1000 };
+  const saved = { hash: await hashCode(user.slug, code), expires: Date.now() + CODE_SECONDS * 1000 };
   await env.WRK_KV.put(`code:${user.slug}`, JSON.stringify(saved), { expirationTtl: CODE_SECONDS });
-  return json({ code: `${code.slice(0, 5)}-${code.slice(5)}` }, 200, corsHeaders);
+  return json({ code }, 200, corsHeaders);
 }
 
 // Claims a new account or resets a forgotten password. Both need a one-time code from the admin page.
@@ -356,11 +364,16 @@ async function setupAccount(req, env, corsHeaders) {
   const saved = await env.WRK_KV.get(codeKey, { type: 'json' });
   if (!saved || Date.now() > saved.expires) return refused;
 
-  const typed = String(body.code).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // Counted apart from the code, because writing back a stale read here would undo a newer code.
+  const triesKey = `code-tries:${saved.hash}`;
+  const tries = Number(await env.WRK_KV.get(triesKey));
+  if (tries >= CODE_TRIES) return refused;
+
+  // Only the first 10 characters, so pasting the admin page's whole line still works.
+  const typed = String(body.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
   if (await hashCode(user.slug, typed) !== saved.hash) {
     // ponytail: KV is eventually consistent, so this count is approximate. The code's 49 bits and the rate limit do the real work.
-    if (saved.tries + 1 >= CODE_TRIES) await env.WRK_KV.delete(codeKey);
-    else await env.WRK_KV.put(codeKey, JSON.stringify({ ...saved, tries: saved.tries + 1 }), { expirationTtl: CODE_SECONDS });
+    await env.WRK_KV.put(triesKey, String(tries + 1), { expirationTtl: CODE_SECONDS });
     return refused;
   }
 

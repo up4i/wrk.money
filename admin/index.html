@@ -192,7 +192,7 @@
             if (!res.ok) throw new Error(data.error || 'failed');
             const out = row.querySelector('.code-out') || row.appendChild(document.createElement('div'));
             out.className = 'code-out';
-            out.innerHTML = `<b>${esc(data.code)}</b> · works once, for 1 hour · they enter it at wrk.money/setup`;
+            out.innerHTML = `<b>${esc(data.code)}</b> · works once, for 1 hour · they wait a minute, then enter it at wrk.money/setup`;
         } catch (e) {
             alert(e.message);
         } finally {
