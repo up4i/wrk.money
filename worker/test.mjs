@@ -23,6 +23,7 @@ function makeEnv(seed = {}) {
       },
       async put(key, value) { calls.put++; store.set(key, value); },
       async delete(key) { store.delete(key); },
+      async list({ prefix }) { return { keys: [...store.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })) }; },
     },
   };
 }
@@ -163,8 +164,8 @@ const realFetch = globalThis.fetch;
   assert.equal((await post(env, '/admin/code', { username: 'nobody' }, admin)).status, 404);
 
   const first = await newCode('fresh');
-  assert.match(first, /^[A-HJKMNP-Z2-9]{5}-[A-HJKMNP-Z2-9]{5}$/);
-  assert.ok(!env.store.get('code:fresh').includes(first.replace('-', '')), 'codes are stored hashed');
+  assert.match(first, /^[A-HJKMNP-Z2-9]{10}$/);
+  assert.ok(!env.store.get('code:fresh').includes(first), 'codes are stored hashed');
 
   const wrong = await setup({ username: 'fresh', code: 'AAAAA-AAAAA', password: 'longenough' });
   const unknown = await setup({ username: 'nobody', code: first, password: 'longenough' });
@@ -175,7 +176,7 @@ const realFetch = globalThis.fetch;
   assert.equal((await setup({ username: 'fresh', code: first, password: 'short' })).status, 400);
   assert.equal((await setup({ username: 'fresh', code: first, password: 12345678 })).status, 400);
 
-  const claimed = await setup({ username: ' Fresh ', code: first.toLowerCase().replace('-', ' '), password: 'first password' });
+  const claimed = await setup({ username: ' Fresh ', code: `${first.slice(0, 5).toLowerCase()}-${first.slice(5)}`, password: 'first password' });
   assert.equal(claimed.status, 200);
   assert.equal((await claimed.json()).firstTime, true);
   assert.equal(env.store.has('code:fresh'), false, 'a used code is gone');
@@ -208,10 +209,7 @@ const realFetch = globalThis.fetch;
   const setup = code => post(env, '/auth/setup', { username: 'fresh', code, password: 'longenough' });
 
   const code = await newCode();
-  for (let i = 0; i < 4; i++) assert.equal((await setup('AAAAA-AAAAA')).status, 401);
-  assert.ok(env.store.has('code:fresh'));
-  assert.equal((await setup('AAAAA-AAAAA')).status, 401);
-  assert.equal(env.store.has('code:fresh'), false);
+  for (let i = 0; i < 5; i++) assert.equal((await setup('AAAAA-AAAAA')).status, 401);
   assert.equal((await setup(code)).status, 401, 'the right code is dead after too many tries');
 
   const late = await newCode();
@@ -228,7 +226,6 @@ const realFetch = globalThis.fetch;
 {
   const admin = { Authorization: 'Bearer test-admin' };
   const env = makeEnv();
-  env.WRK_KV.list = async () => ({ keys: [...env.store.keys()].filter(k => k.startsWith('user:')).map(name => ({ name })) });
   await post(env, '/auth/register', { username: 'MixedCase', slug: 'mixed' }, admin);
   const { code } = await (await post(env, '/admin/code', { username: 'MixedCase' }, admin)).json();
   assert.equal((await post(env, '/auth/setup', { username: 'MixedCase', code, password: 'longenough' })).status, 200);
@@ -237,6 +234,52 @@ const realFetch = globalThis.fetch;
   await post(env, '/admin/code', { username: 'MixedCase' }, admin);
   await call(env, 'https://api.wrk.money/admin/user/mixed', { method: 'DELETE', headers: admin });
   assert.equal(env.store.has('code:mixed'), false);
+}
+
+// Members type the name they remember: any capitals, or the end of their profile link.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  await post(env, '/auth/register', { username: 'Pulse', slug: '$$$' }, admin);
+  await post(env, '/auth/register', { username: 'Other', slug: 'pulsar' }, admin);
+  const newCode = async () => (await (await post(env, '/admin/code', { username: 'Pulse' }, admin)).json()).code;
+
+  for (const username of ['Pulse', 'pulse', 'PULSE', ' $$$ ']) {
+    const res = await post(env, '/auth/setup', { username, code: await newCode(), password: 'longenough' });
+    assert.equal(res.status, 200, `setup as ${username}`);
+    assert.equal((await res.json()).slug, '$$$');
+    assert.equal((await post(env, '/auth/login', { username, password: 'longenough' })).status, 200, `login as ${username}`);
+  }
+  assert.equal((await post(env, '/auth/login', { username: 'nobody', password: 'longenough' })).status, 401);
+  assert.equal((await post(env, '/auth/setup', { username: 'other', code: await newCode(), password: 'longenough' })).status, 401, "a code is only good for its own account");
+}
+
+// A location still caching an old code can refuse a new one, but must not bring the old one back.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  await post(env, '/auth/register', { username: 'fresh' }, admin);
+  const newCode = async () => (await (await post(env, '/admin/code', { username: 'fresh' }, admin)).json()).code;
+  const setup = code => post(env, '/auth/setup', { username: 'fresh', code, password: 'longenough' });
+
+  await newCode();
+  const cached = JSON.parse(env.store.get('code:fresh'));
+  const code = await newCode();
+  const realGet = env.WRK_KV.get;
+  env.WRK_KV.get = async (key, opts) => key === 'code:fresh' ? cached : realGet(key, opts);
+  assert.equal((await setup(code)).status, 401);
+  env.WRK_KV.get = realGet;
+  assert.equal((await setup(code)).status, 200, 'the new code works once the location catches up');
+}
+
+// Copying the admin page's whole line still gives the code.
+{
+  const admin = { Authorization: 'Bearer test-admin' };
+  const env = makeEnv();
+  await post(env, '/auth/register', { username: 'fresh' }, admin);
+  const { code } = await (await post(env, '/admin/code', { username: 'fresh' }, admin)).json();
+  const pasted = `${code} · works once, for 1 hour · they enter it at wrk.money/setup\n`;
+  assert.equal((await post(env, '/auth/setup', { username: 'fresh', code: pasted, password: 'longenough' })).status, 200);
 }
 
 // Gift links are normalised, fake ones rejected, and outages don't block saves.
