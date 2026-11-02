@@ -573,6 +573,7 @@ async function updateProfile(slug, req, env, corsHeaders) {
     enterText: text('enterText', 30),
     hideVisits: flag('hideVisits'),
     hideUid: flag('hideUid'),
+    bgSync: flag('bgSync'),
     bgOpacity: percent('bgOpacity'),
     musicVolume: percent('musicVolume'),
     updatedAt: Date.now(),

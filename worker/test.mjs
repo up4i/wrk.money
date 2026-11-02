@@ -373,6 +373,10 @@ globalThis.fetch = realFetch;
   assert.equal(good.enterText.length, 30);
   assert.equal(good.hideUid, true);
   assert.equal(good.bgOpacity, 100);
+  assert.equal(untouched.bgSync, undefined, 'video sync stays off until chosen');
+  assert.equal((await save({ bgSync: true })).bgSync, true);
+  assert.equal((await save({})).bgSync, true, 'older clients keep the sync choice');
+  assert.equal((await save({ bgSync: false })).bgSync, false);
   assert.equal(good.musicVolume, 0);
 
   const named = await save({ aka: [' wrk ', '', 7, 'z'.repeat(40), ...Array(20).fill('x')] });
@@ -415,6 +419,65 @@ globalThis.fetch = realFetch;
   assert.ok(page.profileCss({ bgOpacity: 250 }).includes('#bg-media{opacity:1}'));
   assert.ok(page.profileCss({ accentColor: '#ff0000', buttonStyle: 'solid' }).includes('color:#ffffff'), 'dark buttons get light text');
   assert.ok(page.profileCss({ accentColor: '#85bb65', buttonStyle: 'solid' }).includes('color:#08090c'), 'light buttons get dark text');
+}
+
+// A synced background waits for the song and follows its pauses, seeks and loops.
+{
+  const listeners = {};
+  const audio = { paused: true, currentTime: 0, addEventListener(name, fn) { (listeners[name] ??= []).push(fn); } };
+  const video = {
+    duration: 263, currentTime: 0, paused: true, autoplay: true, playbackRate: 1, seeking: false, seeks: 0,
+    play() { this.paused = false; return Promise.resolve(); },
+    pause() { this.paused = true; },
+  };
+  const tab = { document: { getElementById: id => id === 'bg-media' ? video : null } };
+  vm.runInNewContext(read('../wrk_files/profile.js'), tab);
+  const fire = name => listeners[name].forEach(fn => fn());
+  const at = time => { audio.currentTime = time; fire('timeupdate'); };
+  const seeking = time => { const before = video.currentTime; at(time); return video.currentTime !== before; };
+
+  const on = { bgSync: true, bgType: 'video', musicEnabled: true, musicUrl: 'song.mp3' };
+  for (const off of [{ ...on, bgSync: false }, { ...on, bgType: 'image' }, { ...on, musicEnabled: false }, { ...on, musicUrl: null }]) tab.syncBgToMusic(off, audio);
+  tab.syncBgToMusic(on, null);
+  assert.equal(video.autoplay, true, 'nothing changes unless every part is set');
+  assert.deepEqual(listeners, {});
+
+  tab.syncBgToMusic(on, audio);
+  assert.equal(video.autoplay, false, 'the video waits for the enter click');
+
+  audio.paused = false;
+  fire('play');
+  assert.equal(video.paused, false);
+
+  video.currentTime = 10;
+  assert.equal(seeking(10.1), false, 'a small gap never seeks');
+  assert.ok(video.playbackRate > 1 && video.playbackRate <= 1.2, 'behind means faster');
+  assert.equal(seeking(9.9), false);
+  assert.ok(video.playbackRate < 1 && video.playbackRate >= 0.8, 'ahead means slower');
+  at(10);
+  assert.equal(video.playbackRate, 1, 'in step means normal speed');
+  assert.equal(seeking(10.9), false);
+  assert.equal(video.playbackRate, 1.2, 'catching up stays subtle');
+  assert.equal(seeking(9.1), false);
+  assert.equal(video.playbackRate, 0.8);
+
+  assert.equal(seeking(120), true, 'a skip in the song moves the video');
+  assert.equal(video.currentTime, 120);
+  video.currentTime = 262.5;
+  assert.equal(seeking(0.2), true, 'the song looping brings the video back');
+  assert.ok(Math.abs(video.currentTime - 0.2) < 1e-9);
+
+  video.seeking = true;
+  assert.equal(seeking(100), false, 'one seek at a time, or a slow link never catches up');
+  video.seeking = false;
+
+  video.duration = 30;
+  video.currentTime = 5;
+  assert.equal(seeking(65), false, 'a clip shorter than the song keeps looping in step');
+
+  audio.paused = true;
+  fire('pause');
+  assert.equal(video.paused, true);
 }
 
 // Saved links must be safe, and bare domains are completed.

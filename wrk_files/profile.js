@@ -120,6 +120,22 @@ function addPinnedGifts(urls, insert) {
     insert(box);
 }
 
+// Holds a background video to the song: it waits for it, and follows its pauses, seeks and loops.
+function syncBgToMusic(p, audio) {
+    if (!p.bgSync || p.bgType !== 'video' || !p.musicEnabled || !p.musicUrl || !audio) return;
+    const video = document.getElementById('bg-media');
+    video.autoplay = false;
+    const follow = () => {
+        if (audio.paused) return video.pause();
+        const drift = audio.currentTime % (video.duration || Infinity) - video.currentTime;
+        if (Math.abs(drift) > 1 && !video.seeking) video.currentTime += drift;
+        // Small gaps close by changing speed, because a seek takes long enough to fall behind again.
+        video.playbackRate = 1 + Math.max(-0.2, Math.min(0.2, drift));
+        if (video.paused) video.play().catch(() => {});
+    };
+    for (const name of ['play', 'pause', 'seeked', 'timeupdate']) audio.addEventListener(name, follow);
+}
+
 function applyProfile(p) {
     loadProfileFont(p);
     const style = document.createElement('style');
