@@ -47,6 +47,22 @@ header {
 .progress-container { height: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
 .progress-bar { background: var(--profile-accent); }
 
+.lyrics {
+    position: relative;
+    height: 7.2em;
+    margin-top: 12px;
+    padding: 2.8em 0;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    text-align: center;
+    mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+    -webkit-mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+}
+.lyrics::-webkit-scrollbar { display: none; }
+.lyrics p { margin: 0; padding: 3px 0; color: rgba(255, 255, 255, 0.4); font-size: 0.82rem; line-height: 1.4; overflow-wrap: anywhere; cursor: pointer; transition: color 0.25s; }
+.lyrics p.current { color: var(--profile-accent); font-weight: 700; }
+
 .gift-box {
     padding: 14px;
     background: var(--glass);
@@ -94,4 +110,5 @@ header {
 
 @media (prefers-reduced-motion: reduce) {
     .container.visible > * { animation: none; }
+    .lyrics { scroll-behavior: auto; }
 }

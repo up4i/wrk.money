@@ -136,6 +136,49 @@ function syncBgToMusic(p, audio) {
     for (const name of ['play', 'pause', 'seeked', 'timeupdate']) audio.addEventListener(name, follow);
 }
 
+// Reads "[01:02.50] words" lines, sorted by time. A line can carry several times, and lines without one are skipped.
+function parseLyrics(text) {
+    const lines = [];
+    for (const row of String(text || '').split('\n')) {
+        const [stamps, words] = row.match(/^\s*((?:\[\d+:\d{1,2}(?:[.:]\d{1,3})?\]\s*)+)(.*)/)?.slice(1) || [];
+        for (const [, min, sec] of (stamps || '').matchAll(/\[(\d+):([\d.:]+)\]/g))
+            lines.push({ time: min * 60 + Number(sec.replace(':', '.')), text: words.trim() });
+    }
+    return lines.sort((a, b) => a.time - b.time);
+}
+
+// The member's timed lyrics inside the player, the sung line lit and held in the middle.
+function showLyrics(p) {
+    const audio = document.getElementById('p-audio') || document.getElementById('audio');
+    const player = document.querySelector('.audio-box');
+    const lines = p.musicEnabled && p.musicUrl ? parseLyrics(p.lyrics) : [];
+    if (!audio || !player || !lines.length) return;
+
+    const box = player.appendChild(document.createElement('div'));
+    box.className = 'lyrics';
+    const rows = lines.map(line => {
+        const row = box.appendChild(document.createElement('p'));
+        row.textContent = line.text || '♪';
+        row.addEventListener('click', () => { audio.currentTime = line.time; });
+        return row;
+    });
+
+    let shown = -1, frame = 0;
+    const follow = () => {
+        cancelAnimationFrame(frame);
+        const at = lines.findLastIndex(line => line.time <= audio.currentTime);
+        if (at !== shown) {
+            rows[shown]?.classList.remove('current');
+            rows[at]?.classList.add('current');
+            box.scrollTop = at < 0 ? 0 : rows[at].offsetTop - (box.clientHeight - rows[at].offsetHeight) / 2;
+            shown = at;
+        }
+        // Every frame while playing, because timeupdate only comes four times a second. It still counts when frames are held back.
+        if (!audio.paused) frame = requestAnimationFrame(follow);
+    };
+    for (const name of ['play', 'pause', 'seeked', 'timeupdate']) audio.addEventListener(name, follow);
+}
+
 function applyProfile(p) {
     loadProfileFont(p);
     const style = document.createElement('style');
@@ -172,6 +215,7 @@ function applyProfile(p) {
         const slider = document.getElementById('p-volume') || document.getElementById('volumeSlider');
         if (slider) slider.value = audio.volume;
     }
+    showLyrics(p);
 
     startTabTitle([...new Set([document.querySelector('.name-row h1').textContent, ...(p.aka || [])])]);
 }
