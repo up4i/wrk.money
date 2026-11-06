@@ -14,6 +14,11 @@
         .card { scroll-margin-top: 130px; }
         #pinned-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 300px; }
         #pinned-preview img { width: 100%; border-radius: 10px; }
+        .lyrics-sync audio { width: 100%; height: 36px; margin-bottom: 10px; color-scheme: dark; }
+        .lyrics-sync [hidden] { display: none; }
+        .sync-lines { min-height: 3.4em; margin-bottom: 10px; text-align: center; font-size: 0.85rem; line-height: 1.6; }
+        #sync-now { color: var(--accent); font-weight: 700; }
+        #sync-next { color: var(--muted); }
         .jump-nav { position: sticky; top: calc(var(--nav-height) + 8px); z-index: 20; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 6px; margin-bottom: 16px; background: rgba(16, 19, 26, 0.86); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
         .jump-nav::-webkit-scrollbar { display: none; }
         .jump-nav a { flex-shrink: 0; padding: 6px 11px; border-radius: 7px; color: var(--muted); font-size: 0.75rem; font-weight: 700; text-decoration: none; }
@@ -319,6 +324,20 @@
                 <label for="musicVolume">starting volume</label>
                 <input type="range" id="musicVolume" min="0" max="100" step="5" value="25">
             </div>
+            <div class="field">
+                <label for="lyrics">lyrics <span style="color:var(--muted)">(optional)</span></label>
+                <textarea id="lyrics" rows="8" maxlength="20000" spellcheck="false" placeholder="paste the lyrics, one line each, then sync them to the song below.&#10;already timed? paste lines like [00:12.50] first line and you're done."></textarea>
+                <div class="hint" id="lyrics-status"></div>
+            </div>
+            <div class="lyrics-sync">
+                <audio id="sync-audio" controls preload="none"></audio>
+                <div class="sync-lines"><div id="sync-now"></div><div id="sync-next"></div></div>
+                <div class="upload-row">
+                    <button class="btn" id="sync-start">sync to the song</button>
+                    <button class="btn btn-primary" id="sync-tap" hidden>next line (space)</button>
+                    <button class="btn" id="sync-undo" hidden>undo</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -381,7 +400,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=6"></script>
-<script src="/wrk_files/profile.js?v=7"></script>
+<script src="/wrk_files/profile.js?v=8"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');
@@ -508,11 +527,115 @@
             statusEl: document.getElementById('music-status'),
         }, url => {
             document.getElementById('musicUrl').value = url;
+            syncAudio.src = url;
             if (!document.getElementById('musicTitle').value) {
                 document.getElementById('musicTitle').value = file.name.replace(/\.[^/.]+$/, '');
             }
         });
     });
+
+    // ── Lyrics ────────────────────────────────────────────────────────────────
+
+    const lyricsEl     = document.getElementById('lyrics');
+    const lyricsStatus = document.getElementById('lyrics-status');
+    const syncAudio    = document.getElementById('sync-audio');
+    const syncStart    = document.getElementById('sync-start');
+    const syncTap      = document.getElementById('sync-tap');
+    const syncUndo     = document.getElementById('sync-undo');
+    const syncNow      = document.getElementById('sync-now');
+    const syncNext     = document.getElementById('sync-next');
+    let sync = null; // { words, times } while tapping along
+
+    const lyricStamp = seconds => {
+        const cs = Math.round(seconds * 100);
+        const two = n => String(n).padStart(2, '0');
+        return `[${two(Math.floor(cs / 6000))}:${two(Math.floor(cs / 100) % 60)}.${two(cs % 100)}]`;
+    };
+    // Each line's words without their times. Blank lines and tags like [chorus] aren't sung, so they're left out.
+    const lyricWords = () => lyricsEl.value.split('\n')
+        .map(row => row.replace(/^\s*(\[\d+:[\d.:]+\]\s*)+/, '').trim())
+        .filter(words => words && !/^\[.*\]$/.test(words));
+
+    function showLyricsStatus() {
+        const total = lyricWords().length, timed = parseLyrics(lyricsEl.value).length;
+        lyricsStatus.textContent = sync ? `press next line or space as each line starts · ${sync.times.length} of ${sync.words.length}`
+            : !total ? `shows under the player on your profile, each line lighting up as it's sung`
+            : timed >= total ? `${timed} lines timed ✓ · play the song here to check them, then save`
+            : timed ? `${timed} of ${total} lines timed · sync again to finish`
+            : `${total} lines, not timed yet · press sync to the song`;
+    }
+
+    function showSyncLines() {
+        syncNow.textContent = sync.words[sync.times.length - 1] || '';
+        syncNext.textContent = sync.words[sync.times.length] || '';
+        showLyricsStatus();
+    }
+
+    function writeSynced() {
+        lyricsEl.value = sync.words.map((words, i) => i < sync.times.length ? `${lyricStamp(sync.times[i])} ${words}` : words).join('\n');
+        showSyncLines();
+    }
+
+    function stopSync() {
+        sync = null;
+        syncAudio.pause();
+        syncStart.textContent = 'sync to the song';
+        syncTap.hidden = syncUndo.hidden = true;
+        lyricsEl.readOnly = false;
+        showLyricsStatus();
+    }
+
+    // Only while the song plays, or every tap would get the same time.
+    function tapLine() {
+        if (!sync || syncAudio.paused) return;
+        sync.times.push(syncAudio.currentTime);
+        writeSynced();
+        if (sync.times.length === sync.words.length) stopSync();
+    }
+
+    syncStart.addEventListener('click', () => {
+        if (sync) return stopSync();
+        const words = lyricWords();
+        if (!syncAudio.src) return lyricsStatus.textContent = 'upload the song first';
+        if (!words.length) return lyricsStatus.textContent = 'paste the lyrics first';
+        sync = { words, times: [] };
+        syncAudio.currentTime = 0;
+        syncAudio.play().catch(() => {});
+        syncStart.textContent = 'stop';
+        syncTap.hidden = syncUndo.hidden = false;
+        lyricsEl.readOnly = true;
+        showSyncLines();
+    });
+
+    // On press rather than release, so the time lands where the line starts.
+    syncTap.addEventListener('pointerdown', tapLine);
+
+    // Back to the start of the line before, so the undone one can be tapped again.
+    syncUndo.addEventListener('click', () => {
+        if (!sync?.times.length) return;
+        sync.times.pop();
+        syncAudio.currentTime = Math.max(0, sync.times.at(-1) ?? 0);
+        syncAudio.play().catch(() => {});
+        writeSynced();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (!sync || e.key !== ' ' || e.repeat || e.target.matches('input, select, textarea:not([readonly])')) return;
+        e.preventDefault();
+        tapLine();
+    });
+
+    // Outside a sync, playing the song here shows the lines as the profile will.
+    syncAudio.addEventListener('timeupdate', () => {
+        if (sync) return;
+        const lines = parseLyrics(lyricsEl.value);
+        const at = lines.findLastIndex(line => line.time <= syncAudio.currentTime);
+        syncNow.textContent = lines[at]?.text ?? '';
+        syncNext.textContent = lines[at + 1]?.text ?? '';
+    });
+
+    lyricsEl.addEventListener('input', showLyricsStatus);
+    showLyricsStatus();
 
     // ── Custom background upload ──────────────────────────────────────────────
 
@@ -706,6 +829,7 @@
             musicEnabled: enabled,
             musicUrl: enabled ? (document.getElementById('musicUrl').value.trim() || null) : null,
             musicTitle: enabled ? (document.getElementById('musicTitle').value.trim() || null) : null,
+            lyrics: lyricsEl.value.trim(),
             bioStatements,
             tabs,
             footer: document.getElementById('footer').value.trim(),
@@ -740,7 +864,7 @@
     // A shadow root keeps the profile's styles from touching this page, and the reverse.
     const lookPreview = document.getElementById('look-preview').attachShadow({ mode: 'open' });
     lookPreview.innerHTML = `
-        <link rel="stylesheet" href="/wrk_files/profile.css?v=4">
+        <link rel="stylesheet" href="/wrk_files/profile.css?v=5">
         <style>
             :host { --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1); display: block; color: #fff; font-family: 'JetBrains Mono', monospace; }
             * { box-sizing: border-box; margin: 0; }
@@ -852,6 +976,9 @@
                 document.getElementById('musicTitle').value = profile.musicTitle || '';
                 if (profile.musicUrl) document.getElementById('music-status').textContent = 'track uploaded ✓';
             }
+            if (profile.musicUrl) syncAudio.src = profile.musicUrl;
+            lyricsEl.value = profile.lyrics || '';
+            showLyricsStatus();
 
             if (profile.bgUrl) {
                 document.getElementById('bgUrl').value = profile.bgUrl;
