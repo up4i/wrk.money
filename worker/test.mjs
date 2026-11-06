@@ -386,6 +386,12 @@ globalThis.fetch = realFetch;
   assert.equal((await save({})).aka.length, 12, 'older clients keep saved akas');
   assert.equal((await save({ aka: [] })).aka.length, 0, 'akas can be cleared');
 
+  const lyrics = '[00:12.50] first line\n[00:15.00] second line';
+  assert.equal((await save({ lyrics: `\n${lyrics}\n` })).lyrics, lyrics);
+  assert.equal((await save({})).lyrics, lyrics, 'older clients keep saved lyrics');
+  assert.equal((await save({ lyrics: 'x'.repeat(30000) })).lyrics.length, 20000);
+  assert.equal((await save({ lyrics: '' })).lyrics, '', 'lyrics can be cleared');
+
   const bad = await save({ avatarShape: 'url(evil)', font: 'x}body{display:none', nameEffect: 'nope', nameColor: 'red;}body{display:none', bgOpacity: 'lots', status: null });
   assert.equal(bad.avatarShape, 'rounded', 'unknown choices keep the saved one');
   assert.equal(bad.font, 'pixel');
@@ -419,6 +425,17 @@ globalThis.fetch = realFetch;
   assert.ok(page.profileCss({ bgOpacity: 250 }).includes('#bg-media{opacity:1}'));
   assert.ok(page.profileCss({ accentColor: '#ff0000', buttonStyle: 'solid' }).includes('color:#ffffff'), 'dark buttons get light text');
   assert.ok(page.profileCss({ accentColor: '#85bb65', buttonStyle: 'solid' }).includes('color:#08090c'), 'light buttons get dark text');
+}
+
+// Timed lyrics read every common way of writing the time, and skip what isn't a timed line.
+{
+  const page = {};
+  vm.runInNewContext(read('../wrk_files/profile.js'), page);
+  const lines = page.parseLyrics('[ar:Juice WRLD]\r\n[Chorus]\n[01:02.50] later\n[00:05] first\n[00:10.123][01:30:00] twice\n\nuntimed\n[00:20.00]\n  [0:07.5]  spaced  ');
+  assert.equal(JSON.stringify(lines.map(l => [l.time, l.text])), JSON.stringify([
+    [5, 'first'], [7.5, 'spaced'], [10.123, 'twice'], [20, ''], [62.5, 'later'], [90, 'twice'],
+  ]));
+  assert.equal(page.parseLyrics(undefined).length, 0);
 }
 
 // A synced background waits for the song and follows its pauses, seeks and loops.

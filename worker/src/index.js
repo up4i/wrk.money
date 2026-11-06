@@ -570,6 +570,7 @@ async function updateProfile(slug, req, env, corsHeaders) {
     nameColor: body.nameColor === undefined ? existing.nameColor : /^#[0-9a-fA-F]{6}$/.test(body.nameColor) ? body.nameColor : null,
     aka: Array.isArray(body.aka) ? body.aka.filter(name => typeof name === 'string').map(name => name.trim().slice(0, 24)).filter(Boolean).slice(0, 12) : existing.aka,
     status: text('status', 60),
+    lyrics: text('lyrics', 20000),
     enterText: text('enterText', 30),
     hideVisits: flag('hideVisits'),
     hideUid: flag('hideUid'),
