@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=3">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
     <style>
         .container { max-width: 860px; }
         input.search { width: min(100%, 280px); }
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=4"></script>
+<script src="/wrk_files/site.js?v=5"></script>
 
 <main class="container">
     <div class="page-head">
@@ -41,7 +41,7 @@
 
     <div id="motd-wrap" style="display:none" class="card motd-card">
         <div class="motd-label">motd</div>
-        <div id="motd-text" class="motd-text"></div>
+        <div id="motd-text" class="motd-text" translate="no"></div>
     </div>
 
     <div id="user-grid" class="user-grid">
@@ -84,7 +84,7 @@
             return `
             <a href="/${escHtml(u.slug)}" class="user-card" data-search="${escHtml(`${u.displayName} ${u.slug}`.toLowerCase())}">
                 <img src="${escHtml(u.avatar) || '/wrk_files/999circle.png'}" alt="" class="user-card-pfp">
-                <div class="user-card-name">${escHtml(u.displayName)}</div>
+                <div class="user-card-name" translate="no">${escHtml(u.displayName)}</div>
                 ${u.uid !== null && u.uid !== undefined ? `<div class="user-card-uid">UID #${u.uid}</div>` : ''}
                 <div class="user-card-badges">
                     ${(u.badges || []).map(id => {

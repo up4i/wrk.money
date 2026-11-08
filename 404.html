@@ -194,17 +194,17 @@
         <header>
             <img id="p-pfp" src="" alt="" class="pfp">
             <div class="name-row">
-                <h1 id="p-name"></h1>
+                <h1 id="p-name" translate="no"></h1>
                 <div id="p-badges"></div>
             </div>
             <div id="p-uid" class="uid-label"></div>
             <div class="typewriter-container">
-                <span id="typewriter"></span><span id="cursor"></span>
+                <span id="typewriter" translate="no"></span><span id="cursor"></span>
             </div>
             <div id="p-visits" class="visit-count"></div>
         </header>
-        <div id="p-tabs"></div>
-        <div class="console-footer" id="p-footer"></div>
+        <div id="p-tabs" translate="no"></div>
+        <div class="console-footer" id="p-footer" translate="no"></div>
     </div>
 </div>
 
@@ -213,7 +213,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js" integrity="sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz" crossorigin="anonymous"></script>
 <script src="/wrk_files/gift.js?v=6"></script>
 <script src="/wrk_files/code-rain.js?v=3"></script>
-<script src="/wrk_files/profile.js?v=8"></script>
+<script src="/wrk_files/profile.js?v=9"></script>
 <script>
     const RESERVED = new Set([
         '$','$$','$$$','insanity','startpage','tools','404',
@@ -285,7 +285,7 @@
             audioBox.id = 'p-audio-box';
             audioBox.innerHTML = `
                 <div class="audio-info">
-                    <span class="track-name">${escHtml(profile.musicTitle || 'untitled')}</span>
+                    <span class="track-name" translate="no">${escHtml(profile.musicTitle || 'untitled')}</span>
                     <div class="audio-controls">
                         <button class="play-btn" id="p-play-btn">I&gt;</button>
                         <input type="range" class="volume-slider" id="p-volume" min="0" max="1" step="0.01" value="0.25">
@@ -457,6 +457,6 @@
 
     init();
 </script>
-<script src="/wrk_files/site.js?v=4" data-nav="mini"></script>
+<script src="/wrk_files/site.js?v=5" data-nav="mini"></script>
 </body>
 </html>
