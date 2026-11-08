@@ -156,6 +156,7 @@ function showLyrics(p) {
 
     const box = player.appendChild(document.createElement('div'));
     box.className = 'lyrics';
+    box.translate = false;
     const rows = lines.map(line => {
         const row = box.appendChild(document.createElement('p'));
         row.textContent = line.text || '♪';
@@ -190,6 +191,7 @@ function applyProfile(p) {
         if (!text) return;
         const line = document.createElement('div');
         line.className = className;
+        line.translate = false;
         line.textContent = text;
         document.querySelector('.name-row').after(line);
     };
@@ -199,9 +201,10 @@ function applyProfile(p) {
 
     const prompt = document.querySelector('.enter-text');
     if (prompt) {
-        if (p.enterText) prompt.textContent = p.enterText;
+        if (p.enterText) { prompt.textContent = p.enterText; prompt.translate = false; }
         const card = document.createElement('div');
         card.className = 'enter-card';
+        card.translate = false;
         const avatar = card.appendChild(new Image());
         avatar.alt = '';
         avatar.src = p.avatar || document.querySelector('.pfp').src;

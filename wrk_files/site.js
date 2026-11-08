@@ -4,6 +4,41 @@
 const SITE_API = 'https://api.wrk.money';
 const siteMode = document.currentScript?.dataset.nav;
 
+// The visitor's pick, else the first of their browser's languages the site has, else English.
+const SITE_LANGS = { en: 'English', es: 'Español', pt: 'Português', fr: 'Français', de: 'Deutsch', ru: 'Русский', id: 'Bahasa Indonesia', ar: 'العربية', zh: '中文', ja: '日本語' };
+const siteLang = [localStorage.getItem('wrk_lang'), ...navigator.languages].map(tag => tag?.slice(0, 2).toLowerCase()).find(code => SITE_LANGS[code]) || 'en';
+// For text that never reaches the page, like a confirm box. translate.js replaces it.
+let siteText = text => text;
+
+function loadLanguage() {
+    const root = document.documentElement;
+    root.lang = siteLang;
+    root.dir = siteLang === 'ar' ? 'rtl' : 'ltr';
+    if (siteLang === 'en') return;
+    // Hidden until the words arrive, so the English doesn't flash first. Profiles have already painted by now, so they stay up.
+    const show = () => { root.style.visibility = ''; };
+    if (siteMode !== 'mini') { root.style.visibility = 'hidden'; setTimeout(show, 2000); }
+    const [, words] = ['/wrk_files/translate.js?v=1', `/wrk_files/lang/${siteLang}.js?v=1`].map(src => {
+        const script = document.head.appendChild(document.createElement('script'));
+        script.async = false;
+        script.src = src;
+        return script;
+    });
+    words.onload = words.onerror = show;
+}
+
+// Remembered on this device only, so it also works before logging in.
+function renderLanguagePicker(nav) {
+    const pick = nav.appendChild(document.createElement('label'));
+    pick.className = 'nav-lang';
+    pick.innerHTML = `<span aria-hidden="true">${siteLang.toUpperCase()}</span><select aria-label="language">${Object.entries(SITE_LANGS)
+        .map(([code, name]) => `<option value="${code}" lang="${code}" translate="no"${code === siteLang ? ' selected' : ''}>${name}</option>`).join('')}</select>`;
+    pick.querySelector('select').addEventListener('change', e => {
+        localStorage.setItem('wrk_lang', e.target.value);
+        location.reload();
+    });
+}
+
 // A member's site settings live on their account. This copy applies them before the page paints.
 function sitePrefs() {
     if (!localStorage.getItem('wrk_token')) return {};
@@ -50,6 +85,7 @@ function renderNav() {
     nav.setAttribute('aria-label', 'site');
     nav.innerHTML = `<a class="nav-logo" href="/"><img src="/wrk_files/999circle.png" alt=""><span>wrk<b>.</b>money</span></a><div class="nav-links">${links}</div>`;
     document.body.prepend(nav);
+    renderLanguagePicker(nav);
 
     const slug = localStorage.getItem('wrk_slug');
     if (!localStorage.getItem('wrk_token') || !slug) {
@@ -65,7 +101,7 @@ function renderNav() {
     user.className = 'nav-user';
     user.innerHTML = `
         <button class="nav-user-btn" type="button" aria-expanded="false" aria-haspopup="true">
-            <img src="/wrk_files/999circle.png" alt=""><span class="nav-user-name"></span><span class="nav-caret" aria-hidden="true">▼</span>
+            <img src="/wrk_files/999circle.png" alt=""><span class="nav-user-name" translate="no"></span><span class="nav-caret" aria-hidden="true">▼</span>
         </button>
         <div class="nav-menu">
             <a class="nav-view">view my profile</a>
@@ -247,5 +283,6 @@ function renderMiniNav() {
     document.body.appendChild(pill);
 }
 
+loadLanguage();
 if (siteMode === 'mini') renderMiniNav();
 else { applyPrefs(sitePrefs()); renderNav(); startNetwork(); }

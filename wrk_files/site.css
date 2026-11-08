@@ -130,6 +130,8 @@ h1 {
     box-shadow: 0 12px 34px -14px rgba(var(--accent-rgb), 0.5);
 }
 .tile-icon { font-size: 1.05rem; font-weight: 800; color: var(--accent); line-height: 1; margin-bottom: 8px; }
+/* Icons like >_ are drawn, not read, so right-to-left languages don't mirror them. */
+.tile-icon, .nav-link-icon { direction: ltr; unicode-bidi: isolate; text-align: match-parent; }
 .tile-name { font-size: 1rem; font-weight: 700; }
 .tile-desc { color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
 .tile-tag {
@@ -275,6 +277,22 @@ input[type="checkbox"] { accent-color: var(--accent); }
 
 .nav-login { flex-shrink: 0; padding: 8px 16px; }
 
+/* The language picker: the code shows, and the real select sits over it unseen so the browser's own list opens. */
+.nav-lang {
+    position: relative;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.nav-lang:hover, .nav-lang:focus-within { color: var(--text); border-color: var(--accent-line); }
+.nav-lang select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; color-scheme: dark; }
+
 .nav-user { position: relative; flex-shrink: 0; }
 .nav-user-btn {
     display: flex;
@@ -299,7 +317,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
     display: none;
     position: absolute;
     top: calc(100% + 8px);
-    right: 0;
+    inset-inline-end: 0;
     min-width: 190px;
     padding: 6px;
     background: var(--panel);
@@ -317,7 +335,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
     border-radius: 6px;
     color: var(--text);
     font-size: 0.8rem;
-    text-align: left;
+    text-align: start;
     text-decoration: none;
     cursor: pointer;
 }

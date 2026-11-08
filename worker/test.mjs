@@ -1,6 +1,6 @@
 // Run with: node worker/test.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -436,6 +436,38 @@ globalThis.fetch = realFetch;
     [5, 'first'], [7.5, 'spaced'], [10.123, 'twice'], [20, ''], [62.5, 'later'], [90, 'twice'],
   ]));
   assert.equal(page.parseLyrics(undefined).length, 0);
+}
+
+// Translations swap whole lines, fill {} in order, and keep the spaces next to a link.
+{
+  const page = {};
+  vm.runInNewContext(read('../wrk_files/translate.js'), page);
+  const t = page.makeTranslator({ 'log in': 'войти', 'log in to continue to {}.': 'войди, чтобы перейти в {}.', '{} of {} lines timed': '{} из {}', 'clear cards': 'прозрачные', 'a (b) c?': 'ok' });
+  assert.equal(t('  log in\n'), '  войти\n');
+  assert.equal(t('log\n   in'), 'войти', 'line breaks in the markup count as one space');
+  assert.equal(t('log in to continue to $$$.'), 'войди, чтобы перейти в $$$.', 'a $ from a page name stays as it is');
+  assert.equal(t('3 of 5 lines timed'), '3 из 5');
+  assert.equal(t('clear', 'clear cards'), 'прозрачные');
+  assert.equal(t('a (b) c?'), 'ok');
+  for (const text of ['constructor', 'logged in', 'log in now', '', '   ']) assert.equal(t(text), text);
+}
+
+// Every language has the same keys as Russian, the same {} in each, and a place in the picker.
+{
+  const site = read('../wrk_files/site.js');
+  const codes = readdirSync(new URL('../wrk_files/lang/', import.meta.url)).map(file => file.replace(/\.js$/, ''));
+  const words = Object.fromEntries(codes.map(code => {
+    let found;
+    vm.runInNewContext(read(`../wrk_files/lang/${code}.js`), { siteTranslate: w => { found = w; } });
+    return [code, found];
+  }));
+  const holes = text => text.split('{}').length - 1;
+  assert.equal(codes.length, 9);
+  for (const code of codes) {
+    assert.ok(site.includes(` ${code}: '`), `${code} is in the picker`);
+    assert.deepEqual(Object.keys(words[code]).sort(), Object.keys(words.ru).sort(), `${code} has the same keys as ru`);
+    for (const [key, to] of Object.entries(words[code])) assert.equal(holes(to), holes(key), `${code}: ${key}`);
+  }
 }
 
 // A synced background waits for the song and follows its pauses, seeks and loops.
