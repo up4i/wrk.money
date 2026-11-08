@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=3">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
     <style>
         .container { max-width: 720px; }
         body { padding-bottom: 110px; }
@@ -72,7 +72,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=4"></script>
+<script src="/wrk_files/site.js?v=5"></script>
 <div class="container">
     <div class="page-head">
         <div>
@@ -226,7 +226,7 @@
                     <select id="cardStyle">
                         <option value="glass">glass</option>
                         <option value="solid">solid</option>
-                        <option value="clear">clear</option>
+                        <option value="clear" data-key="clear cards">clear</option>
                     </select>
                 </div>
                 <div class="field">
@@ -331,7 +331,7 @@
             </div>
             <div class="lyrics-sync">
                 <audio id="sync-audio" controls preload="none"></audio>
-                <div class="sync-lines"><div id="sync-now"></div><div id="sync-next"></div></div>
+                <div class="sync-lines" translate="no"><div id="sync-now"></div><div id="sync-next"></div></div>
                 <div class="upload-row">
                     <button class="btn" id="sync-start">sync to the song</button>
                     <button class="btn btn-primary" id="sync-tap" hidden>next line (space)</button>
@@ -400,7 +400,7 @@
 </div>
 
 <script src="/wrk_files/gift.js?v=6"></script>
-<script src="/wrk_files/profile.js?v=8"></script>
+<script src="/wrk_files/profile.js?v=9"></script>
 <script>
 
     const token = localStorage.getItem('wrk_token');

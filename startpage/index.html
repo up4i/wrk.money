@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=3">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
     <style>
         .main { position: relative; z-index: 1; min-height: calc(100vh - 190px); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .date-line { color: var(--muted); font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
@@ -38,7 +38,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=4"></script>
+<script src="/wrk_files/site.js?v=5"></script>
 
 <main class="main">
     <div class="date-line" id="date-line">loading...</div>
@@ -49,7 +49,7 @@
         <form class="search-form" id="search-form" action="https://www.startpage.com/do/search" method="GET">
             <input class="search-input" id="search-input" type="text" name="query"
                 placeholder="search startpage..." autofocus autocomplete="off">
-            <div class="suggestions" id="suggestions"></div>
+            <div class="suggestions" id="suggestions" translate="no"></div>
             <button type="submit">go</button>
         </form>
         <div class="typewriter-line" id="typewriter-line">
@@ -79,9 +79,8 @@ const prefs = sitePrefs();
 // ── Clock & Date ───────────────────────────────────────────────────────────
 function updateClock() {
     const now = new Date();
-    const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     document.getElementById('date-line').textContent =
-        `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+        now.toLocaleDateString(document.documentElement.lang, { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase();
 
     const pad = n => String(n).padStart(2, '0');
     const hours = now.getHours();
@@ -120,7 +119,7 @@ let tChar = 0, tDel = false;
 const tEl = document.getElementById('typewriter');
 
 function type() {
-    const phrase = phrases[tIdx];
+    const phrase = siteText(phrases[tIdx]);
     tEl.textContent = phrase.substring(0, tDel ? tChar - 1 : tChar + 1);
     tChar = tDel ? tChar - 1 : tChar + 1;
     let speed = tDel ? 40 : 80;

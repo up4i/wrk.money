@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH" crossorigin="anonymous">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
-    <link rel="stylesheet" href="/wrk_files/site.css?v=3">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
     <style>
         .container { position: relative; width: 100%; max-width: 840px; z-index: 1; }
         .meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
@@ -30,7 +30,7 @@
     </style>
 </head>
 <body>
-<script src="/wrk_files/site.js?v=4"></script>
+<script src="/wrk_files/site.js?v=5"></script>
 
 <div class="container">
     <a href="/tools/pastebin" class="back-link">← new paste</a>
@@ -53,7 +53,7 @@
             </div>
         </div>
         <div class="code-card">
-            <pre><code id="code-block"></code></pre>
+            <pre translate="no"><code id="code-block"></code></pre>
         </div>
         <div class="expires" id="expires-label"></div>
     </div>
@@ -98,7 +98,7 @@
 
             if (data.expiresAt) {
                 const exp = new Date(data.expiresAt);
-                expiresLabel.textContent = `expires ${exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+                expiresLabel.textContent = `expires ${exp.toLocaleDateString(document.documentElement.lang, { month: 'short', day: 'numeric', year: 'numeric' })}`;
             }
 
             document.title = `paste ${id} | wrk.money`;
