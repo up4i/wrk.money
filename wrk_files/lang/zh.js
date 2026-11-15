@@ -45,6 +45,7 @@ siteTranslate({
     "7 days": "7 天",
     "30 days": "30 天",
     "too big: {}, the limit is 100 mb": "文件太大：{}，上限为 100 mb",
+    "too big: {}, the limit is 50 gb": "文件太大：{}，上限为 50 gb",
     "expires {}": "{} 过期",
 
     // tab titles
@@ -132,6 +133,7 @@ siteTranslate({
     "invalid telegram gift URL — expected https://t.me/nft/GiftName-Number": "telegram 礼物链接无效 — 应为 https://t.me/nft/GiftName-Number",
     "that telegram gift does not exist: {}": "该 telegram 礼物不存在：{}",
     "file too large (max 100MB)": "文件太大（最大 100MB）",
+    "file too large (max 50 GB)": "文件太大（最大 50 GB）",
     "file required": "请选择文件",
     "storage limit reached (10 GB/month)": "已达存储上限（每月 10 GB）",
     "write operation limit reached (1M/month)": "已达写入上限（每月 1M 次）",
@@ -169,6 +171,7 @@ siteTranslate({
     "enter a valid url": "请输入有效的网址",
     "drop file or click to browse": "拖入文件或点击选择",
     "max 100mb": "最大 100mb",
+    "max 50gb": "最大 50gb",
     "expires": "有效期",
     "never": "永久",
     "upload": "上传",

@@ -45,6 +45,7 @@ siteTranslate({
     "7 days": "7 日",
     "30 days": "30 日",
     "too big: {}, the limit is 100 mb": "大きすぎます：{}、上限は 100 mb です",
+    "too big: {}, the limit is 50 gb": "大きすぎます：{}、上限は 50 gb です",
     "expires {}": "{} に期限切れ",
 
     // tab titles
@@ -132,6 +133,7 @@ siteTranslate({
     "invalid telegram gift URL — expected https://t.me/nft/GiftName-Number": "telegram ギフトのリンクが無効です — https://t.me/nft/GiftName-Number の形式にしてください",
     "that telegram gift does not exist: {}": "その telegram ギフトは存在しません：{}",
     "file too large (max 100MB)": "ファイルが大きすぎます（最大 100MB）",
+    "file too large (max 50 GB)": "ファイルが大きすぎます（最大 50 GB）",
     "file required": "ファイルを選んでください",
     "storage limit reached (10 GB/month)": "ストレージの上限に達しました（月 10 GB）",
     "write operation limit reached (1M/month)": "書き込みの上限に達しました（月 1M 回）",
@@ -169,6 +171,7 @@ siteTranslate({
     "enter a valid url": "有効な url を入力してください",
     "drop file or click to browse": "ファイルをドロップするかクリックして選択",
     "max 100mb": "最大 100mb",
+    "max 50gb": "最大 50gb",
     "expires": "有効期限",
     "never": "無期限",
     "upload": "アップロード",
