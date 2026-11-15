@@ -45,6 +45,7 @@ siteTranslate({
     "7 days": "7 tage",
     "30 days": "30 tage",
     "too big: {}, the limit is 100 mb": "zu groß: {}, das limit ist 100 mb",
+    "too big: {}, the limit is 50 gb": "zu groß: {}, das limit ist 50 gb",
     "expires {}": "läuft ab am {}",
 
     // tab titles
@@ -132,6 +133,7 @@ siteTranslate({
     "invalid telegram gift URL — expected https://t.me/nft/GiftName-Number": "ungültiger telegram-geschenk-link — erwartet https://t.me/nft/GiftName-Number",
     "that telegram gift does not exist: {}": "dieses telegram-geschenk gibt es nicht: {}",
     "file too large (max 100MB)": "datei zu groß (max. 100MB)",
+    "file too large (max 50 GB)": "datei zu groß (max. 50 GB)",
     "file required": "datei erforderlich",
     "storage limit reached (10 GB/month)": "speicherlimit erreicht (10 GB/monat)",
     "write operation limit reached (1M/month)": "schreiblimit erreicht (1M/monat)",
@@ -169,6 +171,7 @@ siteTranslate({
     "enter a valid url": "gib eine gültige url ein",
     "drop file or click to browse": "datei ablegen oder zum auswählen klicken",
     "max 100mb": "max. 100mb",
+    "max 50gb": "max. 50gb",
     "expires": "läuft ab",
     "never": "nie",
     "upload": "hochladen",

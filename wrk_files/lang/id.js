@@ -45,6 +45,7 @@ siteTranslate({
     "7 days": "7 hari",
     "30 days": "30 hari",
     "too big: {}, the limit is 100 mb": "terlalu besar: {}, batasnya 100 mb",
+    "too big: {}, the limit is 50 gb": "terlalu besar: {}, batasnya 50 gb",
     "expires {}": "kedaluwarsa {}",
 
     // tab titles
@@ -132,6 +133,7 @@ siteTranslate({
     "invalid telegram gift URL — expected https://t.me/nft/GiftName-Number": "tautan hadiah telegram tidak valid — seharusnya https://t.me/nft/GiftName-Number",
     "that telegram gift does not exist: {}": "hadiah telegram itu tidak ada: {}",
     "file too large (max 100MB)": "file terlalu besar (maks 100MB)",
+    "file too large (max 50 GB)": "file terlalu besar (maks 50 GB)",
     "file required": "file wajib diisi",
     "storage limit reached (10 GB/month)": "batas penyimpanan tercapai (10 GB/bulan)",
     "write operation limit reached (1M/month)": "batas penulisan tercapai (1M/bulan)",
@@ -169,6 +171,7 @@ siteTranslate({
     "enter a valid url": "masukkan url yang valid",
     "drop file or click to browse": "letakkan file atau klik untuk memilih",
     "max 100mb": "maks 100mb",
+    "max 50gb": "maks 50gb",
     "expires": "kedaluwarsa",
     "never": "tidak pernah",
     "upload": "unggah",

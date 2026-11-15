@@ -45,6 +45,7 @@ siteTranslate({
     "7 days": "7 дней",
     "30 days": "30 дней",
     "too big: {}, the limit is 100 mb": "слишком большой: {}, предел — 100 mb",
+    "too big: {}, the limit is 50 gb": "слишком большой: {}, предел — 50 gb",
     "expires {}": "истекает {}",
 
     // tab titles
@@ -132,6 +133,7 @@ siteTranslate({
     "invalid telegram gift URL — expected https://t.me/nft/GiftName-Number": "неверная ссылка на подарок telegram — нужна https://t.me/nft/GiftName-Number",
     "that telegram gift does not exist: {}": "такого подарка telegram нет: {}",
     "file too large (max 100MB)": "файл слишком большой (максимум 100MB)",
+    "file too large (max 50 GB)": "файл слишком большой (максимум 50 GB)",
     "file required": "нужен файл",
     "storage limit reached (10 GB/month)": "достигнут лимит хранилища (10 GB в месяц)",
     "write operation limit reached (1M/month)": "достигнут лимит записей (1M в месяц)",
@@ -169,6 +171,7 @@ siteTranslate({
     "enter a valid url": "введи правильную ссылку",
     "drop file or click to browse": "перетащи файл или нажми, чтобы выбрать",
     "max 100mb": "до 100mb",
+    "max 50gb": "до 50gb",
     "expires": "срок",
     "never": "бессрочно",
     "upload": "загрузить",
