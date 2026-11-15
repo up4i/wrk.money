@@ -666,6 +666,35 @@ function makeBucket(pageSize = 2) {
       };
     },
     async delete(keys) { for (const key of [keys].flat()) objects.delete(key); },
+    // Multipart uploads join their parts in the order given, and only with the etags R2 handed out.
+    uploads: new Map(),
+    async createMultipartUpload(key, { customMetadata }) {
+      const uploadId = `up-${key}`;
+      this.uploads.set(uploadId, { customMetadata, parts: new Map() });
+      return { uploadId };
+    },
+    resumeMultipartUpload(key, uploadId) {
+      const upload = this.uploads.get(uploadId);
+      const uploads = this.uploads;
+      return {
+        async uploadPart(partNumber, body) {
+          const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+          upload.parts.set(partNumber, bytes);
+          return { partNumber, etag: `etag-${partNumber}-${bytes.length}`, extra: 'not for the page' };
+        },
+        async complete(parts) {
+          const chunks = parts.map(({ partNumber, etag }) => {
+            const bytes = upload.parts.get(partNumber);
+            if (etag !== `etag-${partNumber}-${bytes?.length}`) throw new Error('unknown part');
+            return bytes;
+          });
+          const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
+          objects.set(key, { bytes, customMetadata: upload.customMetadata });
+          uploads.delete(uploadId);
+          return { size: bytes.length };
+        },
+      };
+    },
   };
 }
 
@@ -805,6 +834,85 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   await Promise.all(pending);
   assert.equal(res.status, 200);
   assert.deepEqual(order, ['response', 'usage']);
+}
+
+// Files past the request limit go up in parts, for the owner only. Only their uploader can add to them, and each part has to be its own size.
+{
+  const env = await fileEnv();
+  const MB = 1024 * 1024, GB = 1024 * MB;
+  const start = (body, headers = env.auth) => post(env, '/d/big', body, headers);
+  const putPart = (id, n, bytes, headers = env.auth) => call(env, `https://api.wrk.money/d/big/${id}/${n}`, {
+    method: 'PUT', headers: { ...headers, 'Content-Length': String(bytes.length) }, body: bytes,
+  });
+  const usage = () => JSON.parse(env.store.get(`usage:${new Date().toISOString().slice(0, 7)}`) ?? '{"storageBytes":0}').storageBytes;
+
+  assert.equal((await start({ name: 'a.bin', size: 10 }, {})).status, 401);
+  // Only the owner, who holds the admin badge, can send them.
+  for (const profile of [undefined, { badges: [] }, { badges: ['developer'] }]) {
+    if (profile) env.store.set('profile:foo', JSON.stringify(profile));
+    const refused = await start({ name: 'a.bin', size: 200 * MB, ttl: '1d' });
+    assert.equal(refused.status, 400);
+    assert.equal((await refused.json()).error, 'file too large (max 100MB)');
+  }
+  assert.equal(env.WRK_FILES.uploads.size, 0, 'a refused start opens nothing in R2');
+  env.store.set('profile:foo', JSON.stringify({ badges: ['admin'] }));
+
+  assert.equal((await start({ name: 'a.bin', size: 50 * GB + 1 })).status, 400);
+  for (const size of [0, -1, 1.5, '10']) assert.equal((await start({ name: 'a.bin', size })).status, 400, String(size));
+
+  // R2's free 10 GB is a month's average, so a big file fits when it isn't kept long.
+  assert.equal((await start({ name: 'film.mkv', size: 25 * GB, ttl: '30d' })).status, 429);
+  assert.equal((await start({ name: 'film.mkv', size: 25 * GB, ttl: '7d' })).status, 201);
+  assert.equal(usage(), Math.ceil(25 * GB * 8 / 30));
+
+  const size = 50 * MB + 10;
+  const started = await start({ name: 'film.mkv', type: 'video/x-matroska', size, ttl: '1d' });
+  assert.equal(started.status, 201);
+  const { id, partSize } = await started.json();
+  assert.equal(partSize, 50 * MB);
+
+  const first = new Uint8Array(partSize).fill(7);
+  const last = new Uint8Array(10).fill(9);
+  assert.equal((await putPart(id, 2, new Uint8Array(11))).status, 400, 'the last part is only what is left');
+  assert.equal((await putPart(id, 1, last)).status, 400, 'every other part is a full part');
+  assert.equal((await putPart(id, 3, last)).status, 400, 'no parts past the size given');
+  assert.equal((await putPart(id, 0, last)).status, 400);
+  assert.equal((await putPart(id, 2, last, {})).status, 404);
+
+  const writes = env.calls.put;
+  const parts = [await (await putPart(id, 1, first)).json(), await (await putPart(id, 2, last)).json()];
+  assert.equal(env.calls.put, writes, 'parts cost no KV writes, not even the rate limit');
+  assert.deepEqual(Object.keys(parts[0]), ['partNumber', 'etag']);
+
+  // Someone else can't add to it or finish it.
+  env.store.set('user:bar', JSON.stringify({ username: 'bar', slug: 'bar', salt: 's', passwordHash: await sha256Hex('s' + 'pw') }));
+  const other = { Authorization: `Bearer ${(await (await post(env, '/auth/login', { username: 'bar', password: 'pw' })).json()).token}` };
+  assert.equal((await putPart(id, 2, last, other)).status, 404);
+  assert.equal((await post(env, `/d/big/${id}`, { parts }, other)).status, 404);
+
+  const short = await (await start({ name: 'b.bin', size: 20, ttl: '1d' })).json();
+  await putPart(short.id, 1, new Uint8Array(20));
+  assert.equal((await post(env, `/d/big/${short.id}`, { parts: [] }, env.auth)).status, 400, 'a missing part fails the whole file');
+  assert.ok(!env.WRK_FILES.objects.has(short.id), 'and leaves nothing behind');
+
+  const done = await post(env, `/d/big/${id}`, { parts }, env.auth);
+  assert.equal(done.status, 201);
+  assert.equal((await done.json()).url, `https://wrk.money/d/?id=${id}`);
+  assert.equal((await post(env, `/d/big/${id}`, { parts }, env.auth)).status, 404, 'a finished upload takes nothing more');
+  assert.ok(!env.store.has(`up:${id}`));
+
+  const meta = await (await call(env, `https://api.wrk.money/d/${id}/meta`)).json();
+  assert.deepEqual([meta.name, meta.type, meta.size], ['film.mkv', 'video/x-matroska', size]);
+  assert.ok(meta.expiresAt - Date.now() > 23 * 60 * 60 * 1000);
+  assert.equal(env.WRK_FILES.objects.get(id).customMetadata.expiresAt, String(meta.expiresAt), 'the cleanup sees the same expiry');
+
+  const file = await getStored(env, id);
+  assert.equal(file.headers.get('Content-Disposition'), 'inline; filename="film.mkv"');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  assert.equal(bytes.length, size);
+  assert.deepEqual([bytes[0], bytes[partSize - 1], bytes[partSize], bytes.at(-1)], [7, 7, 9, 9]);
+  const saved = await getStored(env, `${id}?dl`, { Range: 'bytes=0-1' });
+  assert.equal(saved.headers.get('Content-Disposition'), 'attachment; filename="film.mkv"', 'the download button saves a video');
 }
 
 // The daily cleanup removes expired files from R2 and leaves everything else alone.

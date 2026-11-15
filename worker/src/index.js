@@ -704,6 +704,17 @@ async function getPaste(id, env, corsHeaders) {
 // ── File Share ────────────────────────────────────────────────────────────────
 
 const FILE_CACHE_SECONDS = 60 * 60 * 24;
+const TTL_OPTIONS = { '1d': 86400, '7d': 604800, '30d': 2592000, never: 0 };
+const MONTH_SECONDS = 2592000;
+
+// R2 bills storage by the month, so a file counts for the share of a month it's kept, plus the day the cleanup can lag.
+function storageCost(size, ttl) {
+  return ttl ? Math.ceil(size * Math.min((ttl + 86400) / MONTH_SECONDS, 1)) : size;
+}
+
+// Files past the 100 MB request limit go up in parts, which R2 joins into one file.
+const PART_SIZE = 50 * 1024 * 1024;
+const MAX_BIG_FILE_SIZE = 50 * 1024 * 1024 * 1024;
 
 // The bytes a Range header asks for, or nothing when the whole file should go out instead.
 function byteRange(header, size) {
@@ -726,13 +737,12 @@ async function uploadFile(req, env, corsHeaders) {
   const maxFileSize = 100 * 1024 * 1024;
   if (file.size > maxFileSize) return err('file too large (max 100MB)', 400, corsHeaders);
 
-  const limitErr = await checkLimits(env, { storageBytes: file.size, classA: 1 });
+  const ttl = TTL_OPTIONS[formData.get('ttl')] ?? 604800;
+  const need = { storageBytes: storageCost(file.size, ttl), classA: 1 };
+  const limitErr = await checkLimits(env, need);
   if (limitErr) return err(limitErr, 429, corsHeaders);
 
   const id = nanoid();
-  const ttlParam = formData.get('ttl');
-  const ttlOptions = { '1d': 86400, '7d': 604800, '30d': 2592000, never: 0 };
-  const ttl = ttlOptions[ttlParam] ?? 604800;
   const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
 
   const bytes = await file.arrayBuffer();
@@ -750,7 +760,78 @@ async function uploadFile(req, env, corsHeaders) {
   };
   const kvOpts = ttl ? { expirationTtl: ttl } : {};
   await env.WRK_KV.put(`d:${id}`, JSON.stringify(meta), kvOpts);
-  await incrementUsage(env, { storageBytes: file.size, classA: 1 });
+  await incrementUsage(env, need);
+  return json({ id, url: `https://wrk.money/d/?id=${id}`, rawUrl: `https://api.wrk.money/d/${id}` }, 201, corsHeaders);
+}
+
+async function startBigUpload(req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  // Only the owner sends big files. Everyone else keeps the 100 MB limit.
+  const profile = await env.WRK_KV.get(`profile:${user.slug}`, { type: 'json' });
+  if (!profile?.badges?.includes('admin')) return err('file too large (max 100MB)', 400, corsHeaders);
+
+  const body = await req.json().catch(() => null);
+  const size = body?.size;
+  if (!body?.name || !Number.isSafeInteger(size) || size <= 0) return err('file required', 400, corsHeaders);
+  if (size > MAX_BIG_FILE_SIZE) return err('file too large (max 50 GB)', 400, corsHeaders);
+
+  const ttl = TTL_OPTIONS[body.ttl] ?? 604800;
+  // Every part is a write, plus starting and finishing.
+  const need = { storageBytes: storageCost(size, ttl), classA: Math.ceil(size / PART_SIZE) + 2 };
+  const limitErr = await checkLimits(env, need);
+  if (limitErr) return err(limitErr, 429, corsHeaders);
+
+  const id = nanoid();
+  const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
+  // R2 caps custom metadata at 2 KB.
+  const meta = { name: String(body.name).slice(0, 200), type: String(body.type || '') || 'application/octet-stream', size, createdAt: Date.now(), expiresAt };
+  const upload = await env.WRK_FILES.createMultipartUpload(id, {
+    httpMetadata: { contentType: meta.type },
+    customMetadata: { name: meta.name, size: String(size), ...(expiresAt && { expiresAt: String(expiresAt) }) },
+  });
+  // R2 drops a multipart upload nobody finishes after 7 days, so this lasts as long.
+  await env.WRK_KV.put(`up:${id}`, JSON.stringify({ meta, uploadId: upload.uploadId, by: user.slug }), { expirationTtl: 604800 });
+  await incrementUsage(env, need);
+  return json({ id, partSize: PART_SIZE }, 201, corsHeaders);
+}
+
+async function findBigUpload(id, req, env) {
+  const user = await requireAuth(req, env);
+  const up = user && await env.WRK_KV.get(`up:${id}`, { type: 'json' });
+  return user && up?.by === user.slug ? up : null;
+}
+
+async function putBigPart(id, number, req, env, corsHeaders) {
+  const up = await findBigUpload(id, req, env);
+  if (!up) return err('file not found or expired', 404, corsHeaders);
+
+  // Every part's length follows from the size given at the start, so the parts can't add up to more than was counted.
+  const count = Math.ceil(up.meta.size / PART_SIZE);
+  const length = number === count ? up.meta.size - (count - 1) * PART_SIZE : PART_SIZE;
+  if (!(number >= 1 && number <= count) || Number(req.headers.get('Content-Length')) !== length)
+    return err('wrong part size', 400, corsHeaders);
+
+  const part = await env.WRK_FILES.resumeMultipartUpload(id, up.uploadId).uploadPart(number, req.body);
+  return json({ partNumber: part.partNumber, etag: part.etag }, 200, corsHeaders);
+}
+
+async function finishBigUpload(id, req, env, corsHeaders) {
+  const up = await findBigUpload(id, req, env);
+  if (!up) return err('file not found or expired', 404, corsHeaders);
+
+  const body = await req.json().catch(() => null);
+  const file = Array.isArray(body?.parts) && await env.WRK_FILES.resumeMultipartUpload(id, up.uploadId).complete(body.parts).catch(() => null);
+  if (file?.size !== up.meta.size) {
+    if (file) await env.WRK_FILES.delete(id);
+    return err('upload failed', 400, corsHeaders);
+  }
+
+  // The expiry was set when the upload started, since R2 already holds it for the cleanup.
+  const { expiresAt } = up.meta;
+  const kvOpts = expiresAt ? { expiration: Math.max(Math.floor(expiresAt / 1000), Math.floor(Date.now() / 1000) + 60) } : {};
+  await env.WRK_KV.put(`d:${id}`, JSON.stringify(up.meta), kvOpts);
+  await env.WRK_KV.delete(`up:${id}`);
   return json({ id, url: `https://wrk.money/d/?id=${id}`, rawUrl: `https://api.wrk.money/d/${id}` }, 201, corsHeaders);
 }
 
@@ -771,7 +852,8 @@ async function getFile(id, req, env, corsHeaders, ctx) {
   if (meta.expiresAt && Date.now() > meta.expiresAt) return err('file expired', 410, corsHeaders);
 
   const maxAge = meta.expiresAt ? Math.min(FILE_CACHE_SECONDS, Math.floor((meta.expiresAt - Date.now()) / 1000)) : FILE_CACHE_SECONDS;
-  const isInline = meta.type.startsWith('image/') || meta.type.startsWith('audio/') || meta.type.startsWith('video/');
+  // ?dl is the download button, which saves even a video instead of playing it.
+  const isInline = !new URL(req.url).searchParams.has('dl') && /^(image|audio|video)\//.test(meta.type);
   // Ids are never reused and files never change, so the id is all the ETag needs. Cloudflare may mark it W/ when compressing.
   const etag = `"${id}"`;
   const headers = {
@@ -893,6 +975,9 @@ export default {
 
     // API requests only past this point. Only writes are limited: one page view reads many
     // avatars and files, and counting a read would cost a KV write per request.
+    // A big file's parts skip it too, since they come hundreds at a time from an upload that was already counted.
+    const bigPart = req.method === 'PUT' && /^\/d\/big\/([a-z0-9]+)\/(\d+)$/.exec(path);
+    if (bigPart) return putBigPart(bigPart[1], Number(bigPart[2]), req, env, corsHeaders);
     if (req.method !== 'GET' && !await checkRateLimit(env, ip)) return err('rate limit exceeded', 429, corsHeaders);
 
     // Auth
@@ -928,6 +1013,8 @@ export default {
 
     // File share
     if (req.method === 'POST' && path === '/d') return uploadFile(req, env, corsHeaders);
+    if (req.method === 'POST' && path === '/d/big') return startBigUpload(req, env, corsHeaders);
+    if (req.method === 'POST' && path.startsWith('/d/big/')) return finishBigUpload(path.slice(7), req, env, corsHeaders);
     if (req.method === 'GET'  && path.startsWith('/d/') && path.endsWith('/meta')) return getFileMeta(path.slice(3, -5), env, corsHeaders);
     if (req.method === 'GET'  && path.startsWith('/d/')) return getFile(path.slice(3), req, env, corsHeaders, ctx);
 

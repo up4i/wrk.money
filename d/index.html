@@ -62,7 +62,8 @@
     function formatBytes(bytes) {
         if (bytes < 1024) return `${bytes} b`;
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`;
-        return `${(bytes / 1024 / 1024).toFixed(1)} mb`;
+        if (bytes < 1024 ** 3) return `${(bytes / 1024 / 1024).toFixed(1)} mb`;
+        return `${(bytes / 1024 ** 3).toFixed(2)} gb`;
     }
 
     const id = new URLSearchParams(window.location.search).get('id');
@@ -85,7 +86,7 @@
             const rawUrl = `https://api.wrk.money/d/${id}`;
             document.getElementById('file-name').textContent = meta.name;
             document.getElementById('file-meta').textContent = `${formatBytes(meta.size)} · ${meta.type}`;
-            document.getElementById('download-btn').href = rawUrl;
+            document.getElementById('download-btn').href = `${rawUrl}?dl`;
             document.title = `${meta.name} | wrk.money`;
 
             if (meta.type.startsWith('image/')) {
