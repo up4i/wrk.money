@@ -53,13 +53,13 @@
     </style>
     <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/fileshare');</script>
     <script>
-    (async () => {
+    // The page below waits on this to learn whether the visitor is the owner.
+    const isOwner = (async () => {
         const token = localStorage.getItem('wrk_token');
         const res = await fetch('https://api.wrk.money/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!res.ok) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/fileshare'); return; }
+        if (!res.ok) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/fileshare'); return false; }
         const { profile } = await res.json();
-        const isAdmin = (profile?.badges || []).includes('admin');
-        if (!isAdmin) document.getElementById('ttl').querySelector('option[value="never"]').remove();
+        return (profile?.badges || []).includes('admin');
     })();
     </script>
 </head>
@@ -139,16 +139,28 @@
     function formatBytes(bytes) {
         if (bytes < 1024) return `${bytes} b`;
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`;
-        return `${(bytes / 1024 / 1024).toFixed(1)} mb`;
+        if (bytes < 1024 ** 3) return `${(bytes / 1024 / 1024).toFixed(1)} mb`;
+        return `${(bytes / 1024 ** 3).toFixed(2)} gb`;
     }
 
-    // Cloudflare's limit covers the whole request. Past it the browser hangs with no error, so this has to catch it first.
+    // Cloudflare's limit covers the whole request. Past it the browser hangs with no error, so anything bigger goes up in parts.
     const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 - 1024;
+    const MAX_BIG_UPLOAD_BYTES = 50 * 1024 ** 3;
+
+    // Only the owner can send big files or keep one forever. The worker holds everyone else to the same.
+    let maxUploadBytes = MAX_UPLOAD_BYTES;
+    isOwner.then(owner => {
+        if (!owner) return document.getElementById('ttl').querySelector('option[value="never"]').remove();
+        maxUploadBytes = MAX_BIG_UPLOAD_BYTES;
+        document.querySelector('.drop-sublabel').textContent = 'max 50gb';
+    });
 
     function setFile(file) {
-        if (file.size > MAX_UPLOAD_BYTES) {
+        if (file.size > maxUploadBytes) {
             clearSelection();
-            errorMsg.textContent = `too big: ${formatBytes(file.size)}, the limit is 100 mb`;
+            errorMsg.textContent = maxUploadBytes === MAX_UPLOAD_BYTES
+                ? `too big: ${formatBytes(file.size)}, the limit is 100 mb`
+                : `too big: ${formatBytes(file.size)}, the limit is 50 gb`;
             errorMsg.classList.add('visible');
             return;
         }
@@ -182,51 +194,86 @@
 
     clearFile.addEventListener('click', clearSelection);
 
+    // XMLHttpRequest, since fetch can't report upload progress.
+    function send(method, path, body, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(method, `https://api.wrk.money${path}`);
+            xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('wrk_token')}`);
+            if (onProgress) xhr.upload.addEventListener('progress', e => onProgress(e.loaded));
+            xhr.addEventListener('load', () => {
+                // A Cloudflare error page isn't JSON.
+                let data = {};
+                try { data = JSON.parse(xhr.responseText); } catch {}
+                if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+                else reject(Object.assign(new Error(data.error || 'upload failed'), { status: xhr.status }));
+            });
+            xhr.addEventListener('error', () => reject(new Error('network error')));
+            xhr.send(body);
+        });
+    }
+
+    function showProgress(loaded, total) {
+        const pct = Math.round((loaded / total) * 100);
+        progressFill.style.width = `${pct}%`;
+        // Every byte has left the browser, but the worker is still storing the file.
+        progressLabel.textContent = loaded < total ? `${pct}% — ${formatBytes(loaded)} / ${formatBytes(total)}` : 'saving...';
+    }
+
+    // A few parts go at once, so the connection stays busy while each one is saved.
+    // ponytail: closing the tab loses the parts sent so far. Keep their etags in localStorage if restarts start to hurt.
+    async function uploadInParts(file, ttl) {
+        const { id, partSize } = await send('POST', '/d/big', JSON.stringify({ name: file.name, type: file.type, size: file.size, ttl }));
+        const count = Math.ceil(file.size / partSize);
+        const sent = new Array(count).fill(0);
+        const parts = [];
+        let next = 0;
+        await Promise.all([0, 1, 2].map(async () => {
+            while (next < count) {
+                const i = next++;
+                const blob = file.slice(i * partSize, (i + 1) * partSize);
+                for (let tries = 1; ; tries++) {
+                    try {
+                        parts[i] = await send('PUT', `/d/big/${id}/${i + 1}`, blob, loaded => {
+                            sent[i] = loaded;
+                            showProgress(sent.reduce((a, b) => a + b, 0), file.size);
+                        });
+                        break;
+                    } catch (e) {
+                        sent[i] = 0;
+                        // Dropped connections and server hiccups are worth another go. A refusal isn't.
+                        if (tries === 8 || e.status < 500 && e.status !== 429) { next = count; throw e; }
+                        await new Promise(resolve => setTimeout(resolve, Math.min(2 ** tries, 30) * 1000));
+                    }
+                }
+            }
+        }));
+        return send('POST', `/d/big/${id}`, JSON.stringify({ parts }));
+    }
+
+    let uploading = false;
+    addEventListener('beforeunload', e => { if (uploading) e.preventDefault(); });
+
     uploadBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
 
         uploadBtn.disabled = true;
+        uploading = true;
         errorMsg.classList.remove('visible');
         resultCard.classList.remove('visible');
         progressWrap.classList.add('visible');
         progressFill.style.width = '0%';
         progressLabel.textContent = 'uploading...';
 
+        const ttl = document.getElementById('ttl').value;
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('ttl', document.getElementById('ttl').value);
+        formData.append('ttl', ttl);
 
         try {
-            // Use XMLHttpRequest for progress tracking
-            const url = await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', 'https://api.wrk.money/d');
-                xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('wrk_token')}`);
-
-                xhr.upload.addEventListener('progress', e => {
-                    if (e.lengthComputable) {
-                        const pct = Math.round((e.loaded / e.total) * 100);
-                        progressFill.style.width = `${pct}%`;
-                        progressLabel.textContent = `${pct}% — ${formatBytes(e.loaded)} / ${formatBytes(e.total)}`;
-                    }
-                });
-
-                // Every byte has left the browser, but the worker is still storing the file.
-                xhr.upload.addEventListener('load', () => { progressLabel.textContent = 'saving...'; });
-
-                xhr.addEventListener('load', () => {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        const data = JSON.parse(xhr.responseText);
-                        resolve(data.url);
-                    } else {
-                        const data = JSON.parse(xhr.responseText);
-                        reject(new Error(data.error || 'upload failed'));
-                    }
-                });
-
-                xhr.addEventListener('error', () => reject(new Error('network error')));
-                xhr.send(formData);
-            });
+            const { url } = selectedFile.size > MAX_UPLOAD_BYTES
+                ? await uploadInParts(selectedFile, ttl)
+                : await send('POST', '/d', formData, loaded => showProgress(loaded, selectedFile.size));
 
             progressFill.style.width = '100%';
             progressLabel.textContent = 'done';
@@ -240,6 +287,7 @@
             progressWrap.classList.remove('visible');
         } finally {
             uploadBtn.disabled = false;
+            uploading = false;
         }
     });
 
