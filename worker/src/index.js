@@ -932,10 +932,6 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    if (origin && origin !== allowedOrigin) {
-      return err('forbidden', 403);
-    }
-
     const path = url.pathname;
     const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
 
@@ -970,7 +966,12 @@ export default {
       // Cloudflare still compresses the page on its way to the visitor.
       const upstream = new Request(req);
       upstream.headers.delete('Accept-Encoding');
-      return securePage(await fetch(upstream));
+      return securePage(await fetch(upstream), path);
+    }
+
+    // Only the API checks Origin. Site files are public, and web wallets fetch tonconnect-manifest.json from their own origin.
+    if (origin && origin !== allowedOrigin) {
+      return err('forbidden', 403);
     }
 
     // API requests only past this point. Only writes are limited: one page view reads many

@@ -976,6 +976,26 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   globalThis.fetch = realFetch;
 }
 
+// Only the swap page reaches the wallet bridges and aggregators, and wallets can read the manifest from their own origin.
+{
+  const env = makeEnv();
+  globalThis.fetch = async () => new Response('<p></p>', { headers: { 'Content-Type': 'text/html' } });
+  const swap = (await call(env, 'https://wrk.money/tools/swap/')).headers.get('Content-Security-Policy');
+  const home = (await call(env, 'https://wrk.money/')).headers.get('Content-Security-Policy');
+  for (const host of ['wss://omni-ws.ston.fi', 'https://backend.swap.coffee', 'https://mainnet.api.dedust.io', 'https://bridge.tonapi.io', 'https://walletbot.me']) {
+    assert.ok(swap.includes(host), host);
+    assert.ok(!home.includes(host), `${host} stays off other pages`);
+  }
+  assert.doesNotMatch(swap, /connect-src[^;]* https:( |;|$)/, 'connect-src stays an allowlist');
+
+  globalThis.fetch = async () => new Response('{}', { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  const manifest = await call(env, 'https://wrk.money/tonconnect-manifest.json', { headers: { Origin: 'https://wallet.tg' } });
+  assert.equal(manifest.status, 200, 'web wallets fetch the manifest from their own origin');
+  assert.equal(manifest.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.equal((await call(env, 'https://api.wrk.money/motd', { headers: { Origin: 'https://wallet.tg' } })).status, 403, 'the API still refuses other origins');
+  globalThis.fetch = realFetch;
+}
+
 // The shared browser script accepts what the worker accepts.
 {
   const page = {};
