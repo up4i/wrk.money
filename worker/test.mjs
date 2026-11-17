@@ -1003,7 +1003,7 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   assert.equal(iconUrl, 'https://wrk.money/wrk_files/999circle.png');
 
   const code = read('../tools/swap/index.html').match(/<script id="swap-math">([\s\S]*?)<\/script>/)[1];
-  const page = vm.runInNewContext(`${code}; ({ FEE_WALLET, siteFee, feeOnTop, toUnits, fromUnits, toRaw, toFriendly, pickRoute })`, { atob, btoa });
+  const page = vm.runInNewContext(`${code}; ({ FEE_WALLET, siteFee, feeOnTop, feeFor, toUnits, fromUnits, toRaw, toFriendly, addressIn, pickRoute })`, { atob, btoa });
   const utya = '0:5a0a05303a873a80708d967fe82736f4995b3bf581bbc18a1abe1fa8d48b5a9d';
   assert.equal(page.toRaw('EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA'), utya);
   assert.equal(page.toFriendly(utya), 'EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA');
@@ -1012,6 +1012,20 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   // A typo, then the testnet form of the same jetton with a valid checksum.
   for (const bad of ['EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLB', 'kQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItanVlK', 'UTYA', '1:' + '0'.repeat(64), '', null])
     assert.equal(page.toRaw(bad), null, `${bad} is refused`);
+
+  // Pasted links: the jetton's address is pulled out of them.
+  const friendly = 'EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA';
+  for (const link of [
+    `https://tonviewer.com/${friendly}`,
+    `https://tonscan.org/jetton/${friendly}#holders`,
+    `https://app.ston.fi/swap?ft=TON&tt=${friendly}&fa=1`,
+    `https://dedust.io/swap/TON/${friendly}`,
+    `buy this: ${utya} now`,
+    `https://example.com/${'A'.repeat(48)}/${friendly}`,
+    ` ${friendly}\n`,
+  ]) assert.equal(page.addressIn(link), utya, link);
+  for (const none of ['https://tonviewer.com/', `https://tonviewer.com/${friendly.slice(0, -1)}B`, `x${friendly}`, 'UTYA', '', null])
+    assert.equal(page.addressIn(none), null, `${none} has no address`);
 
   assert.equal(page.toUnits('1.5'), 1_500_000_000n);
   assert.equal(page.toUnits('0,000000001'), 1n);
@@ -1032,7 +1046,15 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
     assert.ok(fee >= page.siteFee(swap + fee) && fee - page.siteFee(swap + fee) <= 1n, `fee on top of ${swap} is 0.25% of the total`);
   }
 
-  // `in` is TON spent and `out` tokens got, so the same pick works whichever amount was set.
+  // The fee is always GRAM, worked out from whichever side says what the swap is worth.
+  assert.equal(page.feeFor({ fromGram: true, exactOut: false, payUnits: 10_000_000_000n }), 25_000_000n, 'paying 10 GRAM');
+  assert.equal(page.feeFor({ fromGram: true, exactOut: true, swapUnits: 9_975_000_000n }), 25_000_000n, 'getting a set amount for GRAM');
+  assert.equal(page.feeFor({ toGram: true, in: 100, out: 2.88, gramPerIn: 0.029 }), 7_200_000n, '100 UTYA into 2.88 GRAM counts the GRAM received');
+  assert.equal(page.feeFor({ toGram: true, in: 100, out: 2.88, gramPerIn: NaN }), 7_200_000n, 'receiving GRAM needs no price');
+  assert.equal(page.feeFor({ in: 100, out: 2.97, gramPerIn: 0.029 }), 7_250_000n, '100 UTYA into USDT counts UTYA at its GRAM price');
+  for (const gramPerIn of [NaN, 0, Infinity, null]) assert.equal(page.feeFor({ in: 100, out: 2.97, gramPerIn }), 0n, `no fee without a price (${gramPerIn})`);
+
+  // `in` is what's paid and `out` what's got, so the same pick works whichever amount was set.
   const route = (name, out, hops, gas = 0, spent = 1) => ({ name, out, hops, gas, in: spent });
   assert.equal(page.pickRoute([route('a', 100, 1), route('b', 101, 1)]).name, 'b');
   assert.equal(page.pickRoute([route('a', 100, 1), route('b', 100.05, 2)]).name, 'a', 'fewer hops wins a near tie');
@@ -1042,6 +1064,9 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   assert.equal(page.pickRoute([route('a', 100, 1, 0, 2.93), route('b', 100, 1, 0, 2.91)]).name, 'b', 'for a set token amount, the cheaper route wins');
   assert.equal(page.pickRoute([route('a', 100, 1, 0.0225, 2.9156), route('b', 100, 1, 0.004, 2.9284)]).name, 'b', 'gas counts there too');
   assert.equal(page.pickRoute([route('a', 100, 1)]).name, 'a');
+  // Paying 100 UTYA, where a GRAM is worth 34 UTYA: 0.1 more GRAM of gas costs 3.4 UTYA, which outweighs 1 more out.
+  assert.equal(page.pickRoute([route('a', 3.0, 1, 0.15, 100), route('b', 3.03, 1, 0.25, 100)], 34).name, 'a', 'gas is counted in the coin paid');
+  assert.equal(page.pickRoute([route('a', 3.0, 1, 0.15, 100), route('b', 3.03, 1, 0.25, 100)], 0).name, 'b', 'without a price, gas is left out');
 }
 
 // The shared browser script accepts what the worker accepts.
