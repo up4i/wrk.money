@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>token swap | wrk.money</title>
+    <meta name="description" content="buy any ton jetton at the best price across dexes.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://wrk.money/tools/swap">
+    <meta property="og:title" content="token swap | wrk.money">
+    <meta property="og:description" content="buy any ton jetton at the best price across dexes.">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
+    <style>
+        .container { max-width: 560px; }
+        .swap-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+        .swap-head h1 { margin: 0; }
+        .page-sub { margin-bottom: 22px; }
+        .hidden { display: none; }
+        .row { display: flex; gap: 12px; }
+        .row .grow { flex: 1; }
+        .row .slippage { width: 120px; }
+        .wide { width: 100%; }
+        .either { margin: -6px 0 14px; }
+        .token-top { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+        .token-top img { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+        .token-name { font-size: 0.95rem; }
+        .token-name span { color: var(--muted); }
+        .token-address { display: block; color: var(--muted); font-size: 0.72rem; word-break: break-all; margin-top: 4px; }
+        .token-address:hover { color: var(--accent); }
+        .lists { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge { font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+        .badge.verified { border-color: var(--accent-line); color: var(--accent); }
+        .badge.blacklisted { border-color: var(--danger); color: var(--danger); }
+        .warn { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--danger); border-radius: 8px; background: rgba(255, 107, 107, 0.1); color: var(--danger); font-size: 0.8rem; line-height: 1.5; }
+        .warn b { display: block; margin-bottom: 4px; }
+        .accept { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-size: 0.78rem; cursor: pointer; }
+        .picks { display: grid; gap: 8px; }
+        .picks button { text-align: start; justify-content: flex-start; text-transform: none; font-weight: 400; word-break: break-all; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-bottom: 18px; }
+        th { color: var(--faint); font-weight: 400; text-align: start; padding: 0 0 8px; }
+        td { padding: 8px 0; border-top: 1px solid var(--border); }
+        th:not(:first-child), td:not(:first-child) { text-align: end; }
+        tr.best td { color: var(--accent); }
+        dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; font-size: 0.8rem; margin-bottom: 18px; }
+        dt { color: var(--muted); }
+        dd { text-align: end; word-break: break-word; }
+        dd .hint { margin-top: 2px; }
+        .route-line { display: block; }
+        .status { font-size: 0.78rem; color: var(--muted); margin-top: 12px; text-align: center; }
+        .status a { color: var(--accent); }
+        @media (max-width: 480px) { .row { flex-direction: column; gap: 0; } .row .slippage { width: 100%; } }
+    </style>
+    <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/swap');</script>
+    <script>
+    // Members only. A dead session goes back to login.
+    fetch('https://api.wrk.money/auth/me', { headers: { 'Authorization': `Bearer ${localStorage.getItem('wrk_token')}` } }).then(res => {
+        if (!res.ok) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/swap'); }
+    });
+    </script>
+</head>
+<body>
+<script src="/wrk_files/site.js?v=5"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@5.0.2/dist/tonconnect-ui.min.js" integrity="sha384-XcjUkqRSasKhgdjwlg6cye4QyVHDx/44TrK4zDPtSDQv2UNVyaDjcxmximbFZ010" crossorigin="anonymous"></script>
+
+<div class="container">
+    <a href="/tools" class="back-link">← tools</a>
+    <div class="swap-head">
+        <h1>token swap</h1>
+        <div id="ton-connect"></div>
+    </div>
+    <p class="page-sub">pay with TON, get any jetton. quotes from Omniston, swap.coffee and the DeDust router, which route through STON.fi, DeDust and Tonco.</p>
+
+    <form class="card" id="form">
+        <div class="field">
+            <label for="token">token to buy</label>
+            <input type="text" id="token" placeholder="ticker like UTYA, or a jetton address" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="row">
+            <div class="field grow">
+                <label for="amount">you pay (TON)</label>
+                <input type="text" id="amount" inputmode="decimal" placeholder="1.5" autocomplete="off">
+            </div>
+            <div class="field grow">
+                <label for="want">you get</label>
+                <input type="text" id="want" inputmode="decimal" placeholder="100" autocomplete="off">
+            </div>
+            <div class="field slippage">
+                <label for="slippage">slippage %</label>
+                <input type="text" id="slippage" inputmode="decimal" value="1" autocomplete="off">
+            </div>
+        </div>
+        <p class="hint either">fill in either amount. the page works out the other one.</p>
+        <button class="btn btn-primary wide" id="find">find the best route</button>
+        <div class="error" id="error"></div>
+    </form>
+
+    <div class="card hidden" id="pick-card">
+        <span class="section-label">more than one verified jetton uses this ticker</span>
+        <div class="picks" id="picks"></div>
+    </div>
+
+    <div class="card hidden" id="token-card">
+        <div class="token-top">
+            <img id="token-img" alt="">
+            <div>
+                <div class="token-name" translate="no"><b id="token-symbol"></b> <span id="token-title"></span></div>
+                <a class="token-address" id="token-address" target="_blank" rel="noopener" translate="no"></a>
+            </div>
+        </div>
+        <div class="lists" id="lists"></div>
+        <div class="warn hidden" id="blocked"><b>blocked</b>a token list marks this jetton as a scam, so this page won't swap it.</div>
+        <div class="hidden" id="unverified">
+            <div class="warn"><b>not verified</b>anyone can make a jetton with any ticker, and copycats are common on TON. only go on if you trust this exact address.</div>
+            <label class="accept"><input type="checkbox" id="accept"> i checked this address myself and accept the risk</label>
+        </div>
+    </div>
+
+    <div class="card hidden" id="quote-card">
+        <span class="section-label">best route</span>
+        <table>
+            <thead><tr><th>aggregator</th><th id="side-head">you get</th><th>network fee</th><th>hops</th></tr></thead>
+            <tbody id="compare"></tbody>
+        </table>
+        <dl>
+            <dt>route</dt><dd id="route" translate="no"></dd>
+            <dt>you pay</dt><dd id="pay" translate="no"></dd>
+            <dt>you get</dt><dd id="out" translate="no"></dd>
+            <dt>minimum received</dt><dd id="min" translate="no"></dd>
+            <dt>price impact</dt><dd id="impact" translate="no"></dd>
+            <dt>network fee</dt><dd><span id="gas" translate="no"></span><div class="hint" id="gas-hint"></div></dd>
+            <dt>site fee</dt><dd id="fee" translate="no"></dd>
+        </dl>
+        <button class="btn btn-primary wide" id="swap">swap</button>
+        <div class="status" id="status"></div>
+    </div>
+</div>
+
+<div class="console-footer">SWAP.READY // WRK_05</div>
+
+<script id="swap-math">
+// The money and address math, kept apart so worker/test.mjs can run it.
+const FEE_WALLET = 'UQCkkR5ovr_WMXrPLg1yCeSyhGV_wSrnTCL5E7ACa0DGtO6q';
+// 0.25% of the TON paid, sent to FEE_WALLET in the same transaction, so every route pays it the same way.
+const FEE_BPS = 25n;
+
+function siteFee(nano) {
+    return nano * FEE_BPS / 10_000n;
+}
+
+// The fee when the swap amount comes first: still 0.25% of the total paid, rounded up.
+function feeOnTop(swapNano) {
+    return (swapNano * FEE_BPS + 10_000n - FEE_BPS - 1n) / (10_000n - FEE_BPS);
+}
+
+// "1.5" to the smallest units (nanotons for TON), or null.
+function toUnits(text, decimals = 9) {
+    const m = new RegExp(`^(\\d{1,15})(?:[.,](\\d{0,${decimals}}))?$`).exec(String(text ?? '').trim());
+    return m ? BigInt(m[1]) * 10n ** BigInt(decimals) + BigInt((m[2] || '').padEnd(decimals, '0')) : null;
+}
+
+function fromUnits(units, decimals = 9) {
+    const s = units.toString().padStart(decimals + 1, '0');
+    const whole = s.slice(0, s.length - decimals);
+    const fraction = s.slice(s.length - decimals).replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : whole;
+}
+
+function crc16(bytes) {
+    let crc = 0;
+    for (const b of bytes) {
+        crc ^= b << 8;
+        for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? (crc << 1 ^ 0x1021) & 0xffff : crc << 1 & 0xffff;
+    }
+    return crc;
+}
+
+// Any mainnet address form to raw "wc:hex", or null. The friendly form's checksum catches a typo.
+function toRaw(text) {
+    const s = String(text ?? '').trim();
+    const raw = /^(0|-1):([0-9a-f]{64})$/i.exec(s);
+    if (raw) return `${raw[1]}:${raw[2].toLowerCase()}`;
+    if (!/^[\w+/-]{48}$/.test(s)) return null;
+    const bytes = Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const wc = { 0: '0', 255: '-1' }[bytes[1]];
+    if (![0x11, 0x51].includes(bytes[0]) || !wc || crc16(bytes.subarray(0, 34)) !== (bytes[34] << 8 | bytes[35])) return null;
+    return `${wc}:${Array.from(bytes.subarray(2, 34), b => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Raw to the bounceable EQ... form. Wallets only take friendly addresses, and a contract should get bounceable.
+function toFriendly(raw) {
+    const [wc, hex] = raw.split(':');
+    const bytes = new Uint8Array(36);
+    bytes[0] = 0x11;
+    bytes[1] = wc === '-1' ? 0xff : 0;
+    hex.match(/../g).forEach((h, i) => bytes[2 + i] = parseInt(h, 16));
+    const crc = crc16(bytes.subarray(0, 34));
+    bytes[34] = crc >> 8;
+    bytes[35] = crc & 0xff;
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+// The most tokens per TON spent with gas counted, which is the same pick whichever amount the visitor set.
+// A route with fewer hops wins if it does at least 99.9% as well, since every extra hop is one more swap
+// that can fail and leave the middle token behind.
+function pickRoute(routes) {
+    const rate = r => r.out / (r.in + r.gas);
+    const [best, next] = [...routes].sort((a, b) => rate(b) - rate(a));
+    return next && next.hops < best.hops && rate(next) >= rate(best) * 0.999 ? next : best;
+}
+</script>
+
+<script>
+    const $ = id => document.getElementById(id);
+    const NATIVE = '0:' + '0'.repeat(64);
+    const OMNISTON = 'wss://omni-ws.ston.fi';
+    const JSON_POST = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: 'https://wrk.money/tonconnect-manifest.json',
+        buttonRootId: 'ton-connect',
+        language: siteLang === 'ru' ? 'ru' : 'en',
+        uiPreferences: { theme: TON_CONNECT_UI.THEME.DARK },
+        analytics: { mode: 'off' },
+    });
+
+    let token = null;  // the jetton being bought
+    let lookedUp = '';  // the text `token` came from
+    let quote = null;  // the route on show, and how to build its transaction
+    let exactOut = false;  // the visitor set how many tokens to get, rather than how much TON to pay
+
+    const show = (el, on) => el.classList.toggle('hidden', !on);
+    const fmt = x => x.toLocaleString(undefined, { maximumSignificantDigits: 6 });
+    const pct = x => `${+(x * 100).toFixed(2)}%`;
+
+    function fail(text) {
+        $('error').textContent = text;
+        $('error').classList.add('visible');
+    }
+
+    async function getJson(url, init) {
+        const res = await fetch(url, init);
+        if (res.status === 404) return null;
+        if (res.status === 429) throw new Error('too many requests, try again in a few seconds');
+        if (!res.ok) throw new Error('a token list or aggregator is down, try again soon');
+        return res.json();
+    }
+
+    // ── Which jetton ──────────────────────────────────────────────────────────
+
+    const stonStatus = a => !a ? 'not listed' : a.blacklisted ? 'blacklisted' : a.default_symbol && !a.deprecated ? 'verified' : 'not verified';
+    const coffeeStatus = j => !j ? 'not listed' : { WHITELISTED: 'verified', BLACKLISTED: 'blacklisted' }[j.verification] || 'not verified';
+
+    // Tickers aren't unique on TON and copycats are everywhere, so a ticker only finds jettons a list has verified.
+    // Returns raw address → the swap.coffee entry if that search had it, which saves asking again.
+    async function findTicker(ticker) {
+        const want = ticker.toUpperCase();
+        const [ston, coffee] = await Promise.all([
+            getJson('https://api.ston.fi/v1/assets/query', { ...JSON_POST, body: JSON.stringify({ search_terms: [ticker], condition: 'asset:default_symbol & !asset:blacklisted', limit: 50 }) }),
+            getJson(`https://tokens.swap.coffee/api/v3/jettons?search=${encodeURIComponent(ticker)}&size=100`),
+        ]);
+        const found = new Map();
+        for (const a of ston?.asset_list || []) if (a.meta?.symbol?.toUpperCase() === want) found.set(toRaw(a.contract_address), {});
+        for (const j of coffee || []) if (j.symbol?.toUpperCase() === want) found.set(toRaw(j.address), { coffee: j });
+        return found;
+    }
+
+    async function lookUp(raw, known = {}) {
+        const address = toFriendly(raw);
+        const [ston, coffee] = await Promise.all([
+            getJson(`https://api.ston.fi/v1/assets/${address}`).then(r => r?.asset),
+            known.coffee || getJson(`https://tokens.swap.coffee/api/v3/jettons/${address}?refresh_price=false`),
+        ]);
+        const lists = { 'STON.fi': stonStatus(ston), 'swap.coffee': coffeeStatus(coffee) };
+        const statuses = Object.values(lists);
+        return {
+            raw, address, lists,
+            symbol: ston?.symbol || coffee?.symbol || '?',
+            name: ston?.display_name || coffee?.name || '',
+            decimals: ston?.decimals ?? coffee?.decimals,
+            image: ston?.image_url || coffee?.image_url,
+            blocked: statuses.includes('blacklisted'),
+            verified: statuses.includes('verified'),
+        };
+    }
+
+    // Returns the jetton, or null after showing a choice between several.
+    async function resolveToken(text) {
+        let raw = toRaw(text);
+        let known = {};
+        if (!raw) {
+            if (text.length > 32) throw new Error("that isn't a valid address. check it for a typo");
+            const found = await findTicker(text);
+            const native = found.delete(NATIVE);
+            if (!found.size) throw new Error(native ? "that's TON itself, the coin you pay with" : `no verified jetton uses the ticker ${text}. paste its address if you trust it`);
+            if (found.size > 1) {
+                showPicks(await Promise.all([...found].map(([r, k]) => lookUp(r, k))));
+                return null;
+            }
+            [[raw, known]] = found;
+        }
+        if (raw === NATIVE) throw new Error("that's TON itself, the coin you pay with");
+        const jetton = await lookUp(raw, known);
+        if (jetton.decimals === undefined) throw new Error("neither STON.fi nor swap.coffee knows this jetton, so there's no route to it");
+        return jetton;
+    }
+
+    function showPicks(jettons) {
+        $('picks').replaceChildren(...jettons.map(j => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'btn';
+            pick.translate = false;
+            pick.textContent = `${j.symbol} · ${j.name} · ${j.address}`;
+            pick.addEventListener('click', () => { $('token').value = j.address; find(); });
+            return pick;
+        }));
+        show($('pick-card'), true);
+    }
+
+    function showToken(j) {
+        $('token-img').src = j.image || '';
+        show($('token-img'), j.image);
+        $('token-symbol').textContent = j.symbol;
+        $('token-title').textContent = j.name;
+        $('token-address').textContent = j.address;
+        $('token-address').href = `https://tonviewer.com/${j.address}`;
+        $('lists').replaceChildren(...Object.entries(j.lists).map(([list, status]) => {
+            const badge = document.createElement('span');
+            badge.className = `badge ${status.replace(' ', '-')}`;
+            const name = document.createElement('b');
+            name.translate = false;
+            name.textContent = list;
+            const word = document.createElement('span');
+            word.textContent = status;
+            badge.append(name, ' ', word);
+            return badge;
+        }));
+        show($('blocked'), j.blocked);
+        show($('unverified'), !j.blocked && !j.verified);
+        show($('token-card'), true);
+    }
+
+    $('token-img').addEventListener('error', () => show($('token-img'), false));
+
+    // ── Quotes ────────────────────────────────────────────────────────────────
+
+    const symbols = new Map([[NATIVE, Promise.resolve('TON')]]);
+    function symbolOf(address) {
+        const raw = toRaw(address);
+        if (raw === token.raw) return Promise.resolve(token.symbol);
+        if (!symbols.has(raw)) symbols.set(raw, getJson(`https://api.ston.fi/v1/assets/${address}`).then(r => r?.asset?.symbol || address.slice(0, 6)).catch(() => address.slice(0, 6)));
+        return symbols.get(raw);
+    }
+
+    function rpc(method, params, onEvent) {
+        return new Promise((resolve, reject) => {
+            const ws = new WebSocket(OMNISTON);
+            const end = (fn, value) => { clearTimeout(timer); ws.close(); fn(value); };
+            const timer = setTimeout(() => end(reject, new Error('Omniston took too long to answer')), 15_000);
+            ws.addEventListener('open', () => ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })));
+            ws.addEventListener('error', () => end(reject, new Error("couldn't reach Omniston")));
+            ws.addEventListener('message', e => {
+                const msg = JSON.parse(e.data);
+                const error = msg.error || msg.params?.error;
+                if (error) return end(reject, new Error(error.message || 'Omniston refused the request'));
+                if (!onEvent) return msg.id === 1 && end(resolve, msg.result);
+                if (msg.params?.result) onEvent(msg.params.result, value => end(resolve, value));
+            });
+        });
+    }
+
+    // Omniston asks STON.fi, DeDust and Tonco through its resolvers and streams back better quotes as they come.
+    // `units` is nanotons to swap, or with exactOut the jetton's units to get.
+    async function omnistonRoute(units, exactOut, slippage) {
+        let best = null;
+        let waiting = null;
+        const q = await rpc('stonfi.omni.v1beta8.QuoteRpc.Quote', {
+            input_asset: { ton: { native: {} } },
+            output_asset: { ton: { jetton: token.address } },
+            ...exactOut ? { output_units: String(units) } : { input_units: String(units) },
+            // Three routes plus the site fee fit the 4 messages every wallet can send at once.
+            settlement_params: [{ swap: { max_price_slippage_pips: Math.round(slippage * 1e6), max_routes: 3 } }],
+        }, (event, done) => {
+            // Resolvers answer within a second or two. The best quote 3 seconds after the request wins.
+            waiting ??= setTimeout(() => done(best), 3000);
+            if (event.quote_updated && (!best || BigInt(event.quote_updated.output_units) > BigInt(best.output_units))) best = event.quote_updated;
+            if (event.no_quote) done(null);
+        });
+        if (!q?.swap) return null;
+        const scale = 10 ** token.decimals;
+        const routes = q.swap.routes;
+        return {
+            name: 'Omniston',
+            in: Number(q.input_units) / 1e9,
+            swapNano: BigInt(q.input_units),
+            out: Number(q.output_units) / scale,
+            min: Number(q.swap.min_output_amount) / scale,
+            hops: Math.max(...routes.map(r => r.steps.length)),
+            gas: Number(q.estimated_gas_consumption || 0) / 1e9,
+            attached: Number(q.gas_budget || 0) / 1e9,
+            impact: q.swap.price_impact_pips === undefined ? null : q.swap.price_impact_pips / 1e6,
+            lines: await Promise.all(routes.map(async r => {
+                const share = r.steps[0].chunks.reduce((sum, c) => sum + Number(c.input_units), 0) / Number(q.input_units);
+                const path = ['TON', ...await Promise.all(r.steps.map(s => symbolOf(s.output_asset.ton.jetton || NATIVE)))];
+                const dexes = [...new Set(r.steps.flatMap(s => s.chunks.map(c => c.protocol)))];
+                return `${pct(share)} · ${path.join(' → ')} · ${dexes.join(', ')}`;
+            })),
+            async messages(sender) {
+                const tx = await rpc('stonfi.omni.v1beta8.TonRpc.BuildSwap', {
+                    quote_id: q.quote_id,
+                    transfer_src_address: { ton: sender },
+                    trader_dst_address: { ton: sender },
+                    refund_src_address: { ton: sender },
+                    gas_excess_address: { ton: sender },
+                });
+                // Omniston sends cells as hex. TON Connect wants base64.
+                const base64 = hex => hex ? btoa(String.fromCharCode(...hex.match(/../g).map(h => parseInt(h, 16)))) : undefined;
+                return tx.messages.map(m => ({
+                    address: m.target_address,
+                    amount: m.send_amount,
+                    payload: base64(m.payload),
+                    stateInit: base64(m.jetton_wallet_state_init),
+                }));
+            },
+        };
+    }
+
+    // DeDust's own router, which GroypFi swaps through too. It splits across DeDust and STON.fi pools.
+    async function dedustRoute(units, exactOut, slippage) {
+        const q = await getJson('https://mainnet.api.dedust.io/v4/router/quote', { ...JSON_POST, body: JSON.stringify({
+            in_minter: 'native',
+            out_minter: token.address,
+            amount: String(units),
+            swap_mode: exactOut ? 'exact_out' : 'exact_in',
+            slippage_bps: Math.round(slippage * 1e4),
+            max_splits: 3,
+            max_length: 3,
+            only_verified_pools: false,
+        }) });
+        if (!q?.swap_data?.routes?.length) return null;
+        const scale = 10 ** token.decimals;
+        const fees = list => list.reduce((sum, item) => sum + Number(item.network_fee), 0) / 1e9;
+        return {
+            name: 'DeDust router',
+            in: Number(q.in_amount) / 1e9,
+            swapNano: BigInt(q.in_amount),
+            out: Number(q.out_amount) / scale,
+            min: Number(q.out_amount) / scale * (1 - slippage),
+            hops: Math.max(...q.swap_data.routes.map(r => r.length)),
+            gas: fees(q.swap_data.routes.flat()),
+            attached: fees(q.display_data),
+            impact: Number.isFinite(q.price_impact) ? Math.max(0, -q.price_impact / 100) : null,
+            lines: q.display_data.map(d => {
+                const path = ['TON', ...d.steps.map(s => s.out_minter.symbol)];
+                return `${pct(d.in_percent / 100)} · ${path.join(' → ')} · ${[...new Set(d.steps.map(s => s.protocol.name))].join(', ')}`;
+            }),
+            async messages(sender) {
+                const { transactions } = await getJson('https://mainnet.api.dedust.io/v4/router/swap', { ...JSON_POST, body: JSON.stringify({ sender_address: sender, swap_data: q.swap_data }) });
+                // It can answer in base64url, and TON Connect wants plain base64.
+                const base64 = s => s ? s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=') : undefined;
+                return transactions.map(tx => ({ address: tx.address, amount: tx.amount, payload: base64(tx.payload), stateInit: base64(tx.stateInit) }));
+            },
+        };
+    }
+
+    async function coffeeRoute(units, exactOut, slippage) {
+        const route = await getJson('https://backend.swap.coffee/v1/route', { ...JSON_POST, body: JSON.stringify({
+            input_token: { blockchain: 'ton', address: 'native' },
+            output_token: { blockchain: 'ton', address: token.address },
+            ...exactOut ? { output_amount: Number(units) / 10 ** token.decimals } : { input_amount: Number(units) / 1e9 },
+            max_splits: 3,
+        }) });
+        if (!route?.paths?.length) return null;
+        // Each path is a tree: a step's `next` can split again further along.
+        let gas = 0;
+        let hops = 0;
+        const symbol = t => t.address.address === 'native' ? 'TON' : t.metadata.symbol;
+        const lines = route.paths.map(first => {
+            const path = [symbol(first.input_token)];
+            const dexes = new Set();
+            for (let level = [first]; level.length; level = level.flatMap(s => s.next || [])) {
+                path.push(symbol(level[0].output_token));
+                level.forEach(s => { dexes.add(s.dex); gas += s.average_gas; });
+            }
+            hops = Math.max(hops, path.length - 1);
+            return `${pct(first.swap.input_amount / route.input_amount)} · ${path.join(' → ')} · ${[...dexes].join(', ')}`;
+        });
+        return {
+            name: 'swap.coffee',
+            in: route.input_amount,
+            swapNano: BigInt(Math.round(route.input_amount * 1e9)),
+            out: route.output_amount,
+            min: route.output_amount * (1 - slippage),
+            hops, gas, lines,
+            attached: route.recommended_gas,
+            impact: Math.max(0, -route.price_impact),
+            async messages(sender) {
+                const { transactions } = await getJson('https://backend.swap.coffee/v2/route/transactions', { ...JSON_POST, body: JSON.stringify({ sender_address: sender, slippage, paths: route.paths }) });
+                return transactions.map(tx => ({ address: toFriendly(tx.address), amount: tx.value, payload: tx.cell, stateInit: tx.stateInit }));
+            },
+        };
+    }
+
+    function showQuote() {
+        const { route, routes } = quote;
+        const row = (name, r) => {
+            const tr = document.createElement('tr');
+            tr.className = r === route ? 'best' : '';
+            tr.innerHTML = '<td translate="no"></td><td translate="no"></td><td translate="no"></td><td translate="no"></td>';
+            tr.cells[0].textContent = name;
+            tr.cells[1].textContent = !r ? '—' : quote.exactOut ? `${fmt(r.in)} TON` : `${fmt(r.out)} ${token.symbol}`;
+            tr.cells[2].textContent = r ? `${fmt(r.gas)} TON` : '—';
+            tr.cells[3].textContent = r ? r.hops : '—';
+            return tr;
+        };
+        $('side-head').textContent = quote.exactOut ? 'you pay' : 'you get';
+        $('compare').replaceChildren(...['Omniston', 'swap.coffee', 'DeDust router'].map(name => row(name, routes.find(r => r.name === name))));
+        $('route').replaceChildren(...route.lines.map(line => Object.assign(document.createElement('span'), { className: 'route-line', textContent: line })));
+        $('pay').textContent = `${quote.exactOut ? '≈ ' : ''}${fmt(Number(route.swapNano + quote.fee) / 1e9)} TON`;
+        $('out').textContent = `≈ ${fmt(route.out)} ${token.symbol}`;
+        $('min').textContent = `${fmt(route.min)} ${token.symbol}`;
+        $('impact').textContent = route.impact === null ? '—' : route.impact > 0 && route.impact < 0.0001 ? '<0.01%' : pct(route.impact);
+        $('gas').textContent = `≈ ${fmt(route.gas)} TON`;
+        $('gas-hint').textContent = `${fmt(route.attached)} TON goes with the swap. what isn't used comes back.`;
+        $('fee').textContent = `${fmt(Number(quote.fee) / 1e9)} TON (${pct(Number(FEE_BPS) / 10_000)})`;
+        $('status').textContent = tonConnectUI.account ? '' : 'connect a wallet to swap';
+        show($('quote-card'), true);
+    }
+
+    // ── Flow ──────────────────────────────────────────────────────────────────
+
+    // A quote only holds for the inputs it was made for.
+    function dropQuote() {
+        quote = null;
+        show($('quote-card'), false);
+    }
+
+    async function find() {
+        $('error').classList.remove('visible');
+        show($('pick-card'), false);
+        dropQuote();
+        const text = $('token').value.trim();
+        const nano = toUnits($('amount').value);
+        const slippage = Number($('slippage').value.replace(',', '.')) / 100;
+        const noAmount = 'type how much TON to pay, or how many tokens to get';
+        if (!text) return fail('type a ticker or paste a jetton address');
+        if (exactOut ? !$('want').value.trim() : !nano) return fail(noAmount);
+        if (!(slippage >= 0.001 && slippage <= 0.5)) return fail('slippage must be between 0.1 and 50');
+
+        $('find').disabled = true;
+        $('find').textContent = 'finding routes...';
+        try {
+            if (text !== lookedUp || !token) {
+                token = null;
+                $('accept').checked = false;
+                token = await resolveToken(text);
+                lookedUp = text;
+                if (!token) return;
+                showToken(token);
+            }
+            if (token.blocked || !token.verified && !$('accept').checked) return;
+
+            // The jetton's decimals are only known now, so the token amount is read here.
+            const units = exactOut ? toUnits($('want').value, token.decimals) : nano - siteFee(nano);
+            if (!units) return fail(noAmount);
+            // One aggregator being down shouldn't hide the other's route.
+            const quiet = p => p.catch(e => { console.warn(e); return null; });
+            const routes = (await Promise.all([omnistonRoute, coffeeRoute, dedustRoute].map(ask => quiet(ask(units, exactOut, slippage))))).filter(Boolean);
+            if (!routes.length) return fail('no route found. the pools may be too small for this amount, or nobody trades this jetton yet');
+            const route = pickRoute(routes);
+            const fee = exactOut ? feeOnTop(route.swapNano) : siteFee(nano);
+            quote = { route, routes, fee, exactOut, at: Date.now() };
+            // Fill in the amount the visitor didn't set. Setting .value fires no input event, so the quote stays.
+            if (exactOut) $('amount').value = fromUnits(route.swapNano + fee);
+            else $('want').value = route.out.toLocaleString('en', { maximumSignificantDigits: 8, useGrouping: false });
+            showQuote();
+        } catch (e) {
+            fail(e.message);
+        } finally {
+            $('find').disabled = false;
+            $('find').textContent = 'find the best route';
+        }
+    }
+
+    async function swap() {
+        const account = tonConnectUI.account;
+        if (!account) return tonConnectUI.openModal();
+        // Prices move, so an old quote gets refreshed and shown before anything is signed.
+        if (Date.now() - quote.at > 30_000) {
+            await find();
+            $('status').textContent = 'prices moved. check the new route and press swap again';
+            return;
+        }
+        const q = quote;
+        $('swap').disabled = true;
+        $('status').textContent = 'building the transaction...';
+        try {
+            const messages = await q.route.messages(account.address);
+            if (q.fee > 0n) messages.push({ address: FEE_WALLET, amount: String(q.fee) });
+            $('status').textContent = 'confirm the swap in your wallet';
+            await tonConnectUI.sendTransaction({ validUntil: Math.floor(Date.now() / 1000) + 300, network: '-239', messages });
+            $('status').textContent = 'sent. the tokens usually reach your wallet within a minute. ';
+            const link = Object.assign(document.createElement('a'), { href: `https://tonviewer.com/${account.address}`, target: '_blank', rel: 'noopener', textContent: 'see it on tonviewer' });
+            $('status').append(link);
+            q.at = 0;
+        } catch (e) {
+            $('status').textContent = e instanceof TON_CONNECT_UI.UserRejectsError ? 'cancelled in your wallet' : e.message;
+        } finally {
+            $('swap').disabled = false;
+        }
+    }
+
+    $('form').addEventListener('submit', e => { e.preventDefault(); find(); });
+    $('accept').addEventListener('change', () => $('accept').checked && find());
+    $('swap').addEventListener('click', swap);
+    for (const id of ['token', 'amount', 'want', 'slippage']) $(id).addEventListener('input', dropQuote);
+    // Whichever amount was typed last is the one that's set. The other one gets worked out.
+    $('amount').addEventListener('input', () => { exactOut = false; $('want').value = ''; });
+    $('want').addEventListener('input', () => { exactOut = true; $('amount').value = ''; });
+    $('token').addEventListener('input', () => { show($('token-card'), false); show($('pick-card'), false); });
+    tonConnectUI.onStatusChange(() => quote && showQuote());
+</script>
+</body>
+</html>
