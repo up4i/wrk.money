@@ -354,11 +354,14 @@ function pickRoute(routes, gasToIn = 1) {
         } else $(side).removeAttribute('aria-activedescendant');
     }
 
-    // A box's suggestions. Paying, the wallet's own coins come first. Then verified search results, exact tickers first.
+    // A box's suggestions. The wallet's own coins come first, to pay with one or get more of one.
+    // Then verified search results, exact tickers first. The coin in the other box is left out.
     function fillList(side, found = new Map(), text = '') {
         const want = text.toUpperCase();
-        const own = side === 'from' ? [...holdings].filter(([, h]) => [h.symbol, h.name].some(s => s?.toUpperCase().includes(want))) : [];
-        const searched = [...found].filter(([raw]) => !(side === 'from' && holdings.has(raw)))
+        const otherSide = side === 'from' ? 'to' : 'from';
+        const other = picked[otherSide].text === $(otherSide).value.trim() && picked[otherSide].token?.raw;
+        const own = [...holdings].filter(([raw, h]) => raw !== other && [h.symbol, h.name].some(s => s?.toUpperCase().includes(want)));
+        const searched = [...found].filter(([raw]) => raw !== other && !holdings.has(raw))
             .sort(([, a], [, b]) => (b.symbol?.toUpperCase() === want) - (a.symbol?.toUpperCase() === want));
         const rows = [...own.map(([raw, h]) => option(raw, h, h)), ...searched.slice(0, 10).map(([raw, j]) => option(raw, j))];
         rows.forEach((li, i) => { li.id = `${side}-opt-${i}`; });
@@ -388,7 +391,7 @@ function pickRoute(routes, gasToIn = 1) {
             for (const a of r?.asset_list || []) found.set(toRaw(a.contract_address), { symbol: a.meta?.symbol, name: a.meta?.display_name, image: a.meta?.image_url, balance: Number(a.balance) / 10 ** (a.meta?.decimals ?? 9) });
         }
         holdings = found;
-        if (listOpen('from')) fillList('from');
+        for (const side of ['from', 'to']) if (listOpen(side)) fillList(side);
         showPayWith(picked.from.token);
     }
 
