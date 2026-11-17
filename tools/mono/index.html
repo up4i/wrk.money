@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>monochrome calculator | wrk.money</title>
+    <meta name="description" content="check how closely a telegram gift's model matches its backdrop.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://wrk.money/tools/mono">
+    <meta property="og:title" content="monochrome calculator | wrk.money">
+    <meta property="og:description" content="check how closely a telegram gift's model matches its backdrop.">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
+    <style>
+        .container { max-width: 560px; }
+        .page-sub { margin-bottom: 22px; }
+        .wide { width: 100%; }
+        .hidden { display: none; }
+        #result { margin-top: 16px; }
+        .gift-head { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
+        .gift-head img { width: 64px; height: 64px; border-radius: 10px; flex-shrink: 0; background: var(--glass-hover); }
+        .gift-name { color: var(--text); text-decoration: none; font-size: 0.95rem; }
+        .gift-name:hover { color: var(--accent); }
+        .gift-traits { color: var(--muted); font-size: 0.75rem; margin-top: 4px; }
+        .score { display: flex; align-items: baseline; gap: 10px; }
+        .score b { font-size: 1.6rem; }
+        .score span { color: var(--muted); font-size: 0.8rem; }
+        .bar { height: 8px; border-radius: 999px; background: var(--glass-hover); overflow: hidden; margin-top: 10px; }
+        .bar div { height: 100%; width: 0; border-radius: inherit; transition: width 0.3s; }
+    </style>
+    <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/mono');</script>
+    <script>
+    // Members only. A dead session goes back to login.
+    fetch('https://api.wrk.money/auth/me', { headers: { 'Authorization': `Bearer ${localStorage.getItem('wrk_token')}` } }).then(res => {
+        if (!res.ok) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/mono'); }
+    });
+    </script>
+</head>
+<body>
+<script src="/wrk_files/site.js?v=5"></script>
+
+<div class="container">
+    <a href="/tools" class="back-link">← tools</a>
+    <h1>monochrome calculator</h1>
+    <p class="page-sub">how closely a gift's model matches its backdrop. a gold model on a gold backdrop is monochrome.</p>
+
+    <form class="card" id="form">
+        <div class="field">
+            <label for="gift">gift link or slug</label>
+            <input type="text" id="gift" placeholder="scaredcat-845" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn btn-primary wide" id="calc">calculate</button>
+        <div class="error" id="error"></div>
+    </form>
+
+    <div class="card hidden" id="result">
+        <div class="gift-head">
+            <img id="image" alt="">
+            <div>
+                <a class="gift-name" id="name" target="_blank" rel="noopener" translate="no"></a>
+                <div class="gift-traits" id="traits" translate="no"></div>
+            </div>
+        </div>
+        <div class="score"><b id="score" translate="no"></b><span id="label"></span></div>
+        <div class="bar"><div id="bar"></div></div>
+        <div class="hint" id="source"></div>
+    </div>
+</div>
+
+<div class="console-footer">MONO.READY // WRK_06</div>
+
+<script id="mono-math">
+// clue.tg's own check, for gifts it never scored: the backdrop's colour against the model's fill colours,
+// read from the gift's Fragment animation. Ported line for line from its Python.
+function monoScore(animation) {
+    const layers = animation.layers || [];
+    const bg = layers.find(l => l.nm === 'Background');
+    let backdrop = null;
+    for (const shape of bg?.shapes || [])
+        for (const item of shape.it || [])
+            if (!backdrop && item.ty === 'gf' && (item.g?.k?.k || []).length >= 4) backdrop = item.g.k.k.slice(1, 4);
+    if (!backdrop) return null;
+
+    const fills = modelFills(animation);
+    const neutral = c => Math.max(...c) < 0.12 || Math.min(...c) > 0.88;
+    const chromatic = fills.filter(f => !neutral(f));
+    const unique = [...new Map((chromatic.length ? chromatic : fills).map(f => [f.join(), f])).values()];
+    if (!unique.length) return 0;
+    // Python added these in its set's order, so with three or more colours a mean right on .x5 can round the other way.
+    return round1(unique.reduce((sum, f) => sum + colourMatch(backdrop, f), 0) / unique.length);
+}
+
+// Every fill and gradient stop inside the model, following its nested compositions, minus any glow.
+function modelFills(animation) {
+    const assets = new Map((animation.assets || []).map(a => [a.id, a]));
+    const gift = (animation.layers || []).find(l => l.nm === 'Gift');
+    if (!gift || !assets.has(gift.refId)) return [];
+    const fills = [], seen = new Set([gift.refId]);
+    const numbers = list => list.every(x => typeof x === 'number');
+    const clamp = x => Math.max(0, Math.min(1, x));
+    const walk = obj => {
+        if (Array.isArray(obj)) return obj.forEach(walk);
+        if (!obj || typeof obj !== 'object') return;
+        if (typeof obj.nm === 'string' && obj.nm.toLowerCase().includes('glow')) return;
+        if (obj.ty === 0 && obj.refId && !seen.has(obj.refId) && assets.has(obj.refId)) {
+            seen.add(obj.refId);
+            walk(assets.get(obj.refId));
+        } else if (obj.ty === 'fl') {
+            const k = obj.c?.k;
+            if (Array.isArray(k) && k.length >= 3 && numbers(k.slice(0, 3))) fills.push(k.slice(0, 3).map(clamp));
+        } else if (obj.ty === 'gf') {
+            const g = obj.g || {};
+            let k = g.k && typeof g.k === 'object' && !Array.isArray(g.k) ? g.k.k : g.k;
+            if (Array.isArray(k) && k[0] && typeof k[0] === 'object') k = k[0].s || [];
+            if (Array.isArray(k) && k.length && numbers(k.slice(0, 4)))
+                for (let i = 0; i < (g.p || 0); i++) if (i * 4 + 3 < k.length) fills.push(k.slice(i * 4 + 1, i * 4 + 4).map(clamp));
+        }
+        Object.values(obj).forEach(walk);
+    };
+    walk(assets.get(gift.refId));
+    return fills;
+}
+
+// Python's colorsys.rgb_to_hls.
+function hls([r, g, b]) {
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    if (max === min) return [0, l, 0];
+    const range = max - min, s = l <= 0.5 ? range / (max + min) : range / (2 - max - min);
+    const rc = (max - r) / range, gc = (max - g) / range, bc = (max - b) / range;
+    const h = r === max ? bc - gc : g === max ? 2 + rc - bc : 4 + gc - rc;
+    return [((h / 6) % 1 + 1) % 1, l, s];
+}
+
+// A colourful backdrop matches on hue, and a grey one on lightness.
+function colourMatch(backdrop, fill) {
+    const [bh, bl, bs] = hls(backdrop), [fh, fl, fs] = hls(fill);
+    if (bs <= 0.15) return round1(Math.max(0, (1 - Math.abs(bl - fl)) * 100));
+    if (fs < 0.10) return round1(Math.max(0, 40 * (1 - Math.abs(bl - fl))));
+    const apart = Math.abs(bh - fh), hue = Math.min(apart, 1 - apart);
+    return round1(Math.max(0, (1 - hue * 2) * 100));
+}
+
+// Rounds the way Python's round(x, 1) does.
+const round1 = x => Number(x.toFixed(1));
+
+const monoLabel = score => score >= 80 ? 'strong match' : score >= 55 ? 'partial match' : 'low match';
+const monoColour = score => score >= 80 ? 'var(--accent)' : score >= 55 ? '#fb923c' : 'var(--danger)';
+</script>
+<script>
+    const form = document.getElementById('form');
+    const input = document.getElementById('gift');
+    const calc = document.getElementById('calc');
+    const error = document.getElementById('error');
+    const result = document.getElementById('result');
+    const $ = id => document.getElementById(id);
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const typed = input.value.trim();
+        if (!typed) return;
+        calc.disabled = true;
+        calc.textContent = 'checking...';
+        error.classList.remove('visible');
+        result.classList.add('hidden');
+        try {
+            const res = await fetch(`https://api.wrk.money/gifts/mono?gift=${encodeURIComponent(typed)}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('wrk_token')}` } });
+            const gift = await res.json();
+            if (!res.ok) throw new Error(gift.error || 'something went wrong');
+            let score = gift.score;
+            let source = "clue.tg's stored score";
+            if (score === null) {
+                source = "worked out from the gift's animation";
+                score = await fetch(`https://nft.fragment.com/gift/${gift.key}.lottie.json`)
+                    .then(r => r.ok ? r.json() : null).then(data => data && monoScore(data)).catch(() => null);
+            }
+            show(gift, score, source);
+        } catch (err) {
+            error.textContent = err.message;
+            error.classList.add('visible');
+        } finally {
+            calc.disabled = false;
+            calc.textContent = 'calculate';
+        }
+    });
+
+    function show(gift, score, source) {
+        $('name').textContent = gift.name || gift.key;
+        $('name').href = `https://t.me/nft/${gift.key}`;
+        $('image').src = `https://nft.fragment.com/gift/${gift.key}.webp`;
+        $('traits').textContent = [gift.model, gift.backdrop, gift.symbol].filter(Boolean).join(' · ');
+        const known = score !== null;
+        $('score').textContent = known ? `${score}%` : '';
+        $('score').style.color = known ? monoColour(score) : '';
+        $('label').textContent = known ? monoLabel(score) : 'score unavailable';
+        $('bar').style.width = known ? `${score}%` : '0';
+        $('bar').style.background = known ? monoColour(score) : '';
+        $('source').textContent = known ? source : '';
+        result.classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
