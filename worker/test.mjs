@@ -996,6 +996,54 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
   globalThis.fetch = realFetch;
 }
 
+// The swap page's address and fee math, and the manifest wallets read.
+{
+  const { url, iconUrl } = JSON.parse(read('../tonconnect-manifest.json'));
+  assert.equal(url, 'https://wrk.money');
+  assert.equal(iconUrl, 'https://wrk.money/wrk_files/999circle.png');
+
+  const code = read('../tools/swap/index.html').match(/<script id="swap-math">([\s\S]*?)<\/script>/)[1];
+  const page = vm.runInNewContext(`${code}; ({ FEE_WALLET, siteFee, feeOnTop, toUnits, fromUnits, toRaw, toFriendly, pickRoute })`, { atob, btoa });
+  const utya = '0:5a0a05303a873a80708d967fe82736f4995b3bf581bbc18a1abe1fa8d48b5a9d';
+  assert.equal(page.toRaw('EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA'), utya);
+  assert.equal(page.toFriendly(utya), 'EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA');
+  assert.equal(page.toRaw(utya.toUpperCase().replace('0X', '0x')), utya);
+  assert.equal(page.toRaw(page.FEE_WALLET), '0:a4911e68bebfd6317acf2e0d7209e4b284657fc12ae74c22f913b0026b40c6b4', 'the fee wallet is a real address');
+  // A typo, then the testnet form of the same jetton with a valid checksum.
+  for (const bad of ['EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLB', 'kQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItanVlK', 'UTYA', '1:' + '0'.repeat(64), '', null])
+    assert.equal(page.toRaw(bad), null, `${bad} is refused`);
+
+  assert.equal(page.toUnits('1.5'), 1_500_000_000n);
+  assert.equal(page.toUnits('0,000000001'), 1n);
+  assert.equal(page.toUnits('2.5', 6), 2_500_000n, 'a 6-decimal jetton like USDT');
+  assert.equal(page.toUnits('7', 0), 7n);
+  for (const bad of ['', '1.0000000001', '-1', '1e9', 'abc']) assert.equal(page.toUnits(bad), null, bad);
+  assert.equal(page.toUnits('1.1234567', 6), null, 'more decimals than the jetton has');
+  assert.equal(page.fromUnits(1_500_000_000n), '1.5');
+  assert.equal(page.fromUnits(1n), '0.000000001');
+  assert.equal(page.fromUnits(2_500_000n, 6), '2.5');
+  assert.equal(page.fromUnits(7n, 0), '7');
+  for (const units of [1n, 999n, 1_000_000_000n, 2_915_648_333n]) assert.equal(page.toUnits(page.fromUnits(units)), units);
+
+  assert.equal(page.siteFee(10_000_000_000n), 25_000_000n, '0.25% of 10 TON');
+  assert.equal(page.feeOnTop(9_975_000_000n), 25_000_000n, 'swapping 9.975 TON costs 10 TON with the fee');
+  for (const swap of [1n, 12_345n, 2_915_648_333n, 9_975_000_001n]) {
+    const fee = page.feeOnTop(swap);
+    assert.ok(fee >= page.siteFee(swap + fee) && fee - page.siteFee(swap + fee) <= 1n, `fee on top of ${swap} is 0.25% of the total`);
+  }
+
+  // `in` is TON spent and `out` tokens got, so the same pick works whichever amount was set.
+  const route = (name, out, hops, gas = 0, spent = 1) => ({ name, out, hops, gas, in: spent });
+  assert.equal(page.pickRoute([route('a', 100, 1), route('b', 101, 1)]).name, 'b');
+  assert.equal(page.pickRoute([route('a', 100, 1), route('b', 100.05, 2)]).name, 'a', 'fewer hops wins a near tie');
+  assert.equal(page.pickRoute([route('a', 100, 1), route('b', 101, 2)]).name, 'b', 'more hops wins when it gives clearly more');
+  assert.equal(page.pickRoute([route('a', 100, 1), route('b', 99.95, 1)]).name, 'a', 'a near tie with the same hops goes to the bigger output');
+  assert.equal(page.pickRoute([route('a', 101, 1, 0.5), route('b', 100, 1, 0.01)]).name, 'b', 'gas counts');
+  assert.equal(page.pickRoute([route('a', 100, 1, 0, 2.93), route('b', 100, 1, 0, 2.91)]).name, 'b', 'for a set token amount, the cheaper route wins');
+  assert.equal(page.pickRoute([route('a', 100, 1, 0.0225, 2.9156), route('b', 100, 1, 0.004, 2.9284)]).name, 'b', 'gas counts there too');
+  assert.equal(page.pickRoute([route('a', 100, 1)]).name, 'a');
+}
+
 // The shared browser script accepts what the worker accepts.
 {
   const page = {};
