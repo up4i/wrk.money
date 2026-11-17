@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>token swap | wrk.money</title>
-    <meta name="description" content="buy any ton jetton at the best price across dexes.">
+    <meta name="description" content="swap any coin on TON at the best price across dexes.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://wrk.money/tools/swap">
     <meta property="og:title" content="token swap | wrk.money">
-    <meta property="og:description" content="buy any ton jetton at the best price across dexes.">
+    <meta property="og:description" content="swap any coin on TON at the best price across dexes.">
     <meta name="theme-color" content="#06070b">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
@@ -24,6 +24,7 @@
         .row .slippage { width: 120px; }
         .wide { width: 100%; }
         .either { margin: -6px 0 14px; }
+        #from-info { word-break: break-all; }
         .token-top { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
         .token-top img { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
         .token-name { font-size: 0.95rem; }
@@ -71,20 +72,27 @@
         <h1>token swap</h1>
         <div id="ton-connect"></div>
     </div>
-    <p class="page-sub">pay with TON, get any jetton. quotes from Omniston, swap.coffee and the DeDust router, which route through STON.fi, DeDust and Tonco.</p>
+    <p class="page-sub">swap any coin on TON for any other. quotes from Omniston, swap.coffee and the DeDust router, which route through STON.fi, DeDust and Tonco.</p>
 
     <form class="card" id="form">
         <div class="field">
-            <label for="token">token to buy</label>
-            <input type="text" id="token" placeholder="ticker like UTYA, or a jetton address" autocomplete="off" spellcheck="false">
+            <label for="from">pay with</label>
+            <input type="text" id="from" list="from-list" value="GRAM" placeholder="search a ticker, or paste a jetton address or link" autocomplete="off" spellcheck="false">
+            <datalist id="from-list" translate="no"></datalist>
+            <div class="hint hidden" id="from-info"></div>
+        </div>
+        <div class="field">
+            <label for="to">receive</label>
+            <input type="text" id="to" list="to-list" placeholder="search a ticker, or paste a jetton address or link" autocomplete="off" spellcheck="false">
+            <datalist id="to-list" translate="no"></datalist>
         </div>
         <div class="row">
             <div class="field grow">
-                <label for="amount">you pay (TON)</label>
+                <label for="amount">you pay <span id="pay-unit" translate="no"></span></label>
                 <input type="text" id="amount" inputmode="decimal" placeholder="1.5" autocomplete="off">
             </div>
             <div class="field grow">
-                <label for="want">you get</label>
+                <label for="want">you get <span id="get-unit" translate="no"></span></label>
                 <input type="text" id="want" inputmode="decimal" placeholder="100" autocomplete="off">
             </div>
             <div class="field slippage">
@@ -143,7 +151,7 @@
 <script id="swap-math">
 // The money and address math, kept apart so worker/test.mjs can run it.
 const FEE_WALLET = 'UQCkkR5ovr_WMXrPLg1yCeSyhGV_wSrnTCL5E7ACa0DGtO6q';
-// 0.25% of the TON paid, sent to FEE_WALLET in the same transaction, so every route pays it the same way.
+// 0.25% of the GRAM paid, sent to FEE_WALLET in the same transaction, so every route pays it the same way.
 const FEE_BPS = 25n;
 
 function siteFee(nano) {
@@ -155,7 +163,16 @@ function feeOnTop(swapNano) {
     return (swapNano * FEE_BPS + 10_000n - FEE_BPS - 1n) / (10_000n - FEE_BPS);
 }
 
-// "1.5" to the smallest units (nanotons for TON), or null.
+// The site fee in billionths of GRAM: 0.25% of what the swap is worth, always paid in GRAM as its own message.
+// Paying with GRAM it's part of the amount. Otherwise it's 0.25% of the GRAM received, or of what the coin paid
+// is worth in GRAM. With no price to go by, there's no fee.
+function feeFor(swap) {
+    if (swap.fromGram) return swap.exactOut ? feeOnTop(swap.swapUnits) : siteFee(swap.payUnits);
+    const worth = swap.toGram ? swap.out : swap.in * swap.gramPerIn;
+    return Number.isFinite(worth) && worth > 0 ? siteFee(BigInt(Math.round(worth * 1e9))) : 0n;
+}
+
+// "1.5" to the smallest units (billionths for GRAM), or null.
 function toUnits(text, decimals = 9) {
     const m = new RegExp(`^(\\d{1,15})(?:[.,](\\d{0,${decimals}}))?$`).exec(String(text ?? '').trim());
     return m ? BigInt(m[1]) * 10n ** BigInt(decimals) + BigInt((m[2] || '').padEnd(decimals, '0')) : null;
@@ -189,6 +206,12 @@ function toRaw(text) {
     return `${wc}:${Array.from(bytes.subarray(2, 34), b => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
+// The first valid address in pasted text, like a tonviewer, tonscan, STON.fi or DeDust link. Raw, or null.
+function addressIn(text) {
+    const found = String(text ?? '').match(/(?<![\w-])(?:[\w-]{48}|-?\d:[0-9a-fA-F]{64})(?![\w-])/g) || [];
+    return found.map(toRaw).find(Boolean) ?? null;
+}
+
 // Raw to the bounceable EQ... form. Wallets only take friendly addresses, and a contract should get bounceable.
 function toFriendly(raw) {
     const [wc, hex] = raw.split(':');
@@ -202,11 +225,12 @@ function toFriendly(raw) {
     return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-// The most tokens per TON spent with gas counted, which is the same pick whichever amount the visitor set.
+// The most out per unit paid with gas counted, which is the same pick whichever amount the visitor set.
+// Gas is always GRAM, so `gasToIn` turns it into the coin paid with: 1 for GRAM, 0 when there's no price to go by.
 // A route with fewer hops wins if it does at least 99.9% as well, since every extra hop is one more swap
 // that can fail and leave the middle token behind.
-function pickRoute(routes) {
-    const rate = r => r.out / (r.in + r.gas);
+function pickRoute(routes, gasToIn = 1) {
+    const rate = r => r.out / (r.in + r.gas * gasToIn);
     const [best, next] = [...routes].sort((a, b) => rate(b) - rate(a));
     return next && next.hops < best.hops && rate(next) >= rate(best) * 0.999 ? next : best;
 }
@@ -226,14 +250,16 @@ function pickRoute(routes) {
         analytics: { mode: 'off' },
     });
 
-    let token = null;  // the jetton being bought
-    let lookedUp = '';  // the text `token` came from
+    // What each box points at: the coin it resolved to, and the text it came from.
+    const picked = { from: { token: null, text: '' }, to: { token: null, text: '' } };
+    let holdings = new Map();  // raw address → { symbol, balance } of the connected wallet's coins
     let quote = null;  // the route on show, and how to build its transaction
-    let exactOut = false;  // the visitor set how many tokens to get, rather than how much TON to pay
+    let exactOut = false;  // the visitor set how much to get, rather than how much to pay
 
     const show = (el, on) => el.classList.toggle('hidden', !on);
     const fmt = x => x.toLocaleString(undefined, { maximumSignificantDigits: 6 });
     const pct = x => `${+(x * 100).toFixed(2)}%`;
+    const span = (text, translate = true) => Object.assign(document.createElement('span'), { textContent: text, translate });
 
     function fail(text) {
         $('error').textContent = text;
@@ -248,27 +274,71 @@ function pickRoute(routes) {
         return res.json();
     }
 
-    // ── Which jetton ──────────────────────────────────────────────────────────
+    // ── Which coins ───────────────────────────────────────────────────────────
 
     const stonStatus = a => !a ? 'not listed' : a.blacklisted ? 'blacklisted' : a.default_symbol && !a.deprecated ? 'verified' : 'not verified';
     const coffeeStatus = j => !j ? 'not listed' : { WHITELISTED: 'verified', BLACKLISTED: 'blacklisted' }[j.verification] || 'not verified';
 
-    // Tickers aren't unique on TON and copycats are everywhere, so a ticker only finds jettons a list has verified.
-    // Returns raw address → the swap.coffee entry if that search had it, which saves asking again.
-    async function findTicker(ticker) {
-        const want = ticker.toUpperCase();
+    // Tickers aren't unique on TON and copycats are everywhere, so a search only finds jettons a list has verified.
+    // Returns raw address → { symbol, name, coffee }, most popular first. `coffee` saves asking swap.coffee again.
+    async function searchVerified(text) {
         const [ston, coffee] = await Promise.all([
-            getJson('https://api.ston.fi/v1/assets/query', { ...JSON_POST, body: JSON.stringify({ search_terms: [ticker], condition: 'asset:default_symbol & !asset:blacklisted', limit: 50 }) }),
-            getJson(`https://tokens.swap.coffee/api/v3/jettons?search=${encodeURIComponent(ticker)}&size=100`),
+            getJson('https://api.ston.fi/v1/assets/query', { ...JSON_POST, body: JSON.stringify({ search_terms: [text], condition: 'asset:default_symbol & !asset:blacklisted', sort_by: ['popularity_index:desc'], limit: 50 }) }),
+            // swap.coffee allows about a request a second, so a busy moment there shouldn't stop the search.
+            getJson(`https://tokens.swap.coffee/api/v3/jettons?search=${encodeURIComponent(text)}&size=100`).catch(() => null),
         ]);
         const found = new Map();
-        for (const a of ston?.asset_list || []) if (a.meta?.symbol?.toUpperCase() === want) found.set(toRaw(a.contract_address), {});
-        for (const j of coffee || []) if (j.symbol?.toUpperCase() === want) found.set(toRaw(j.address), { coffee: j });
+        for (const a of ston?.asset_list || []) found.set(toRaw(a.contract_address), { symbol: a.meta?.symbol, name: a.meta?.display_name });
+        for (const j of coffee || []) {
+            const raw = toRaw(j.address);
+            found.set(raw, { symbol: j.symbol, name: j.name, ...found.get(raw), coffee: j });
+        }
         return found;
+    }
+
+    async function findTicker(ticker) {
+        const want = ticker.toUpperCase();
+        return new Map([...await searchVerified(ticker)].filter(([, j]) => j.symbol?.toUpperCase() === want));
+    }
+
+    const option = (raw, label) => Object.assign(document.createElement('option'), { value: raw === NATIVE ? 'GRAM' : toFriendly(raw), label });
+
+    // A box's suggestions. Paying, the wallet's own coins come first. Then verified search results, exact tickers first.
+    function fillList(side, found = new Map(), text = '') {
+        const own = side === 'from' ? holdings : new Map();
+        const want = text.toUpperCase();
+        const searched = [...found].filter(([raw]) => !own.has(raw))
+            .sort(([, a], [, b]) => (b.symbol?.toUpperCase() === want) - (a.symbol?.toUpperCase() === want));
+        $(`${side}-list`).replaceChildren(
+            ...[...own].map(([raw, h]) => option(raw, `${h.symbol} · ${siteText(`${fmt(h.balance)} in your wallet`)}`)),
+            ...searched.slice(0, 10).map(([raw, j]) => option(raw, `${j.symbol} · ${j.name}`)));
+    }
+
+    async function suggest(side, text) {
+        const found = await searchVerified(text).catch(() => null);
+        if (found && $(side).value.trim() === text) fillList(side, found, text);
+    }
+
+    // The connected wallet's coins, from STON.fi's index. Coins no DEX lists don't show, but nothing could swap them anyway.
+    async function loadHoldings() {
+        const account = tonConnectUI.account;
+        const found = new Map();
+        if (account) {
+            const r = await getJson('https://api.ston.fi/v1/assets/query', { ...JSON_POST, body: JSON.stringify({ wallet_address: toFriendly(account.address), condition: 'asset:wallet_has_balance', sort_by: ['popularity_index:desc'], limit: 100 }) }).catch(() => null);
+            for (const a of r?.asset_list || []) found.set(toRaw(a.contract_address), { symbol: a.meta?.symbol, balance: Number(a.balance) / 10 ** (a.meta?.decimals ?? 9) });
+        }
+        holdings = found;
+        fillList('from');
+        showPayWith(picked.from.token);
     }
 
     async function lookUp(raw, known = {}) {
         const address = toFriendly(raw);
+        if (raw === NATIVE) {
+            // GRAM is the chain's own coin, so there's nothing to verify. STON.fi still has its logo and price.
+            const ston = await getJson(`https://api.ston.fi/v1/assets/${address}`).then(r => r?.asset).catch(() => null);
+            return { raw, address, native: true, symbol: 'GRAM', name: 'Gram', decimals: 9, image: ston?.image_url, usd: Number(ston?.dex_price_usd) || null, lists: {}, verified: true, blocked: false };
+        }
         const [ston, coffee] = await Promise.all([
             getJson(`https://api.ston.fi/v1/assets/${address}`).then(r => r?.asset),
             known.coffee || getJson(`https://tokens.swap.coffee/api/v3/jettons/${address}?refresh_price=false`),
@@ -281,45 +351,62 @@ function pickRoute(routes) {
             name: ston?.display_name || coffee?.name || '',
             decimals: ston?.decimals ?? coffee?.decimals,
             image: ston?.image_url || coffee?.image_url,
+            usd: Number(ston?.dex_price_usd) || null,
             blocked: statuses.includes('blacklisted'),
             verified: statuses.includes('verified'),
         };
     }
 
-    // Returns the jetton, or null after showing a choice between several.
-    async function resolveToken(text) {
-        let raw = toRaw(text);
+    let gram;  // GRAM's own entry, for its price
+    const gramToken = () => gram ??= lookUp(NATIVE);
+
+    // Returns the coin, or null after showing a choice between several.
+    async function resolveToken(side, text) {
+        let raw = toRaw(text) ?? addressIn(text);
         let known = {};
+        // TON is GRAM's old name, and the lists only know it as GRAM now.
+        if (!raw && /^(gram|ton)$/i.test(text)) raw = NATIVE;
         if (!raw) {
             if (text.length > 32) throw new Error("that isn't a valid address. check it for a typo");
             const found = await findTicker(text);
-            const native = found.delete(NATIVE);
-            if (!found.size) throw new Error(native ? "that's TON itself, the coin you pay with" : `no verified jetton uses the ticker ${text}. paste its address if you trust it`);
+            found.delete(NATIVE);
+            if (!found.size) throw new Error(`no verified jetton uses the ticker ${text}. paste its address if you trust it`);
             if (found.size > 1) {
-                showPicks(await Promise.all([...found].map(([r, k]) => lookUp(r, k))));
+                showPicks(side, await Promise.all([...found].map(([r, k]) => lookUp(r, k))));
                 return null;
             }
             [[raw, known]] = found;
         }
-        if (raw === NATIVE) throw new Error("that's TON itself, the coin you pay with");
-        const jetton = await lookUp(raw, known);
-        if (jetton.decimals === undefined) throw new Error("neither STON.fi nor swap.coffee knows this jetton, so there's no route to it");
-        return jetton;
+        const coin = await lookUp(raw, known);
+        if (coin.decimals === undefined) throw new Error("neither STON.fi nor swap.coffee knows this jetton, so there's no route to it");
+        return coin;
     }
 
-    function showPicks(jettons) {
+    function showPicks(side, jettons) {
         $('picks').replaceChildren(...jettons.map(j => {
             const pick = document.createElement('button');
             pick.type = 'button';
             pick.className = 'btn';
             pick.translate = false;
             pick.textContent = `${j.symbol} · ${j.name} · ${j.address}`;
-            pick.addEventListener('click', () => { $('token').value = j.address; find(); });
+            pick.addEventListener('click', () => { $(side).value = j.address; find(); });
             return pick;
         }));
         show($('pick-card'), true);
     }
 
+    // The line under "pay with": which coin, and how much of it the wallet holds.
+    function showPayWith(j) {
+        const held = j && holdings.get(j.raw);
+        // GRAM with no wallet connected has nothing to add.
+        if (!j || j.native && !held) return show($('from-info'), false);
+        $('from-info').replaceChildren(
+            span(j.native ? 'GRAM' : `${j.symbol} · ${j.name} · ${j.address}`, false),
+            ...held ? [' · ', span(`${fmt(held.balance)} in your wallet`)] : []);
+        show($('from-info'), true);
+    }
+
+    // The card for the coin received, with its verification.
     function showToken(j) {
         $('token-img').src = j.image || '';
         show($('token-img'), j.image);
@@ -327,15 +414,14 @@ function pickRoute(routes) {
         $('token-title').textContent = j.name;
         $('token-address').textContent = j.address;
         $('token-address').href = `https://tonviewer.com/${j.address}`;
+        show($('token-address'), !j.native);
         $('lists').replaceChildren(...Object.entries(j.lists).map(([list, status]) => {
             const badge = document.createElement('span');
             badge.className = `badge ${status.replace(' ', '-')}`;
             const name = document.createElement('b');
             name.translate = false;
             name.textContent = list;
-            const word = document.createElement('span');
-            word.textContent = status;
-            badge.append(name, ' ', word);
+            badge.append(name, ' ', span(status));
             return badge;
         }));
         show($('blocked'), j.blocked);
@@ -347,10 +433,11 @@ function pickRoute(routes) {
 
     // ── Quotes ────────────────────────────────────────────────────────────────
 
-    const symbols = new Map([[NATIVE, Promise.resolve('TON')]]);
+    const symbols = new Map([[NATIVE, Promise.resolve('GRAM')]]);
     function symbolOf(address) {
         const raw = toRaw(address);
-        if (raw === token.raw) return Promise.resolve(token.symbol);
+        const mine = [picked.from.token, picked.to.token].find(t => t?.raw === raw);
+        if (mine) return Promise.resolve(mine.symbol);
         if (!symbols.has(raw)) symbols.set(raw, getJson(`https://api.ston.fi/v1/assets/${address}`).then(r => r?.asset?.symbol || address.slice(0, 6)).catch(() => address.slice(0, 6)));
         return symbols.get(raw);
     }
@@ -372,14 +459,18 @@ function pickRoute(routes) {
         });
     }
 
+    // Each route says what's paid (`in`, `swapUnits`) and got (`out`, `min`) in its own coin, and gas in GRAM.
+    // `units` is what's paid in the paying coin's smallest units, or with exactOut what's got in the receiving coin's.
+
+    const omnistonAsset = t => ({ ton: t.native ? { native: {} } : { jetton: t.address } });
+
     // Omniston asks STON.fi, DeDust and Tonco through its resolvers and streams back better quotes as they come.
-    // `units` is nanotons to swap, or with exactOut the jetton's units to get.
-    async function omnistonRoute(units, exactOut, slippage) {
+    async function omnistonRoute(from, to, units, exactOut, slippage) {
         let best = null;
         let waiting = null;
         const q = await rpc('stonfi.omni.v1beta8.QuoteRpc.Quote', {
-            input_asset: { ton: { native: {} } },
-            output_asset: { ton: { jetton: token.address } },
+            input_asset: omnistonAsset(from),
+            output_asset: omnistonAsset(to),
             ...exactOut ? { output_units: String(units) } : { input_units: String(units) },
             // Three routes plus the site fee fit the 4 messages every wallet can send at once.
             settlement_params: [{ swap: { max_price_slippage_pips: Math.round(slippage * 1e6), max_routes: 3 } }],
@@ -390,21 +481,20 @@ function pickRoute(routes) {
             if (event.no_quote) done(null);
         });
         if (!q?.swap) return null;
-        const scale = 10 ** token.decimals;
         const routes = q.swap.routes;
         return {
             name: 'Omniston',
-            in: Number(q.input_units) / 1e9,
-            swapNano: BigInt(q.input_units),
-            out: Number(q.output_units) / scale,
-            min: Number(q.swap.min_output_amount) / scale,
+            in: Number(q.input_units) / 10 ** from.decimals,
+            swapUnits: BigInt(q.input_units),
+            out: Number(q.output_units) / 10 ** to.decimals,
+            min: Number(q.swap.min_output_amount) / 10 ** to.decimals,
             hops: Math.max(...routes.map(r => r.steps.length)),
             gas: Number(q.estimated_gas_consumption || 0) / 1e9,
             attached: Number(q.gas_budget || 0) / 1e9,
             impact: q.swap.price_impact_pips === undefined ? null : q.swap.price_impact_pips / 1e6,
             lines: await Promise.all(routes.map(async r => {
                 const share = r.steps[0].chunks.reduce((sum, c) => sum + Number(c.input_units), 0) / Number(q.input_units);
-                const path = ['TON', ...await Promise.all(r.steps.map(s => symbolOf(s.output_asset.ton.jetton || NATIVE)))];
+                const path = [from.symbol, ...await Promise.all(r.steps.map(s => symbolOf(s.output_asset.ton.jetton || NATIVE)))];
                 const dexes = [...new Set(r.steps.flatMap(s => s.chunks.map(c => c.protocol)))];
                 return `${pct(share)} · ${path.join(' → ')} · ${dexes.join(', ')}`;
             })),
@@ -428,11 +518,13 @@ function pickRoute(routes) {
         };
     }
 
+    const dedustMinter = t => t.native ? 'native' : t.address;
+
     // DeDust's own router, which GroypFi swaps through too. It splits across DeDust and STON.fi pools.
-    async function dedustRoute(units, exactOut, slippage) {
+    async function dedustRoute(from, to, units, exactOut, slippage) {
         const q = await getJson('https://mainnet.api.dedust.io/v4/router/quote', { ...JSON_POST, body: JSON.stringify({
-            in_minter: 'native',
-            out_minter: token.address,
+            in_minter: dedustMinter(from),
+            out_minter: dedustMinter(to),
             amount: String(units),
             swap_mode: exactOut ? 'exact_out' : 'exact_in',
             slippage_bps: Math.round(slippage * 1e4),
@@ -441,20 +533,19 @@ function pickRoute(routes) {
             only_verified_pools: false,
         }) });
         if (!q?.swap_data?.routes?.length) return null;
-        const scale = 10 ** token.decimals;
         const fees = list => list.reduce((sum, item) => sum + Number(item.network_fee), 0) / 1e9;
         return {
             name: 'DeDust router',
-            in: Number(q.in_amount) / 1e9,
-            swapNano: BigInt(q.in_amount),
-            out: Number(q.out_amount) / scale,
-            min: Number(q.out_amount) / scale * (1 - slippage),
+            in: Number(q.in_amount) / 10 ** from.decimals,
+            swapUnits: BigInt(q.in_amount),
+            out: Number(q.out_amount) / 10 ** to.decimals,
+            min: Number(q.out_amount) / 10 ** to.decimals * (1 - slippage),
             hops: Math.max(...q.swap_data.routes.map(r => r.length)),
             gas: fees(q.swap_data.routes.flat()),
             attached: fees(q.display_data),
             impact: Number.isFinite(q.price_impact) ? Math.max(0, -q.price_impact / 100) : null,
             lines: q.display_data.map(d => {
-                const path = ['TON', ...d.steps.map(s => s.out_minter.symbol)];
+                const path = [from.symbol, ...d.steps.map(s => s.out_minter.type === 'native' ? 'GRAM' : s.out_minter.symbol)];
                 return `${pct(d.in_percent / 100)} · ${path.join(' → ')} · ${[...new Set(d.steps.map(s => s.protocol.name))].join(', ')}`;
             }),
             async messages(sender) {
@@ -466,18 +557,20 @@ function pickRoute(routes) {
         };
     }
 
-    async function coffeeRoute(units, exactOut, slippage) {
+    const coffeeToken = t => ({ blockchain: 'ton', address: t.native ? 'native' : t.address });
+
+    async function coffeeRoute(from, to, units, exactOut, slippage) {
         const route = await getJson('https://backend.swap.coffee/v1/route', { ...JSON_POST, body: JSON.stringify({
-            input_token: { blockchain: 'ton', address: 'native' },
-            output_token: { blockchain: 'ton', address: token.address },
-            ...exactOut ? { output_amount: Number(units) / 10 ** token.decimals } : { input_amount: Number(units) / 1e9 },
+            input_token: coffeeToken(from),
+            output_token: coffeeToken(to),
+            ...exactOut ? { output_amount: Number(units) / 10 ** to.decimals } : { input_amount: Number(units) / 10 ** from.decimals },
             max_splits: 3,
         }) });
         if (!route?.paths?.length) return null;
         // Each path is a tree: a step's `next` can split again further along.
         let gas = 0;
         let hops = 0;
-        const symbol = t => t.address.address === 'native' ? 'TON' : t.metadata.symbol;
+        const symbol = t => t.address.address === 'native' ? 'GRAM' : t.metadata.symbol;
         const lines = route.paths.map(first => {
             const path = [symbol(first.input_token)];
             const dexes = new Set();
@@ -491,7 +584,7 @@ function pickRoute(routes) {
         return {
             name: 'swap.coffee',
             in: route.input_amount,
-            swapNano: BigInt(Math.round(route.input_amount * 1e9)),
+            swapUnits: BigInt(Math.round(route.input_amount * 10 ** from.decimals)),
             out: route.output_amount,
             min: route.output_amount * (1 - slippage),
             hops, gas, lines,
@@ -505,27 +598,29 @@ function pickRoute(routes) {
     }
 
     function showQuote() {
-        const { route, routes } = quote;
+        const { route, routes, from, to, fee } = quote;
         const row = (name, r) => {
             const tr = document.createElement('tr');
             tr.className = r === route ? 'best' : '';
             tr.innerHTML = '<td translate="no"></td><td translate="no"></td><td translate="no"></td><td translate="no"></td>';
             tr.cells[0].textContent = name;
-            tr.cells[1].textContent = !r ? '—' : quote.exactOut ? `${fmt(r.in)} TON` : `${fmt(r.out)} ${token.symbol}`;
-            tr.cells[2].textContent = r ? `${fmt(r.gas)} TON` : '—';
+            tr.cells[1].textContent = !r ? '—' : quote.exactOut ? `${fmt(r.in)} ${from.symbol}` : `${fmt(r.out)} ${to.symbol}`;
+            tr.cells[2].textContent = r ? `${fmt(r.gas)} GRAM` : '—';
             tr.cells[3].textContent = r ? r.hops : '—';
             return tr;
         };
         $('side-head').textContent = quote.exactOut ? 'you pay' : 'you get';
         $('compare').replaceChildren(...['Omniston', 'swap.coffee', 'DeDust router'].map(name => row(name, routes.find(r => r.name === name))));
         $('route').replaceChildren(...route.lines.map(line => Object.assign(document.createElement('span'), { className: 'route-line', textContent: line })));
-        $('pay').textContent = `${quote.exactOut ? '≈ ' : ''}${fmt(Number(route.swapNano + quote.fee) / 1e9)} TON`;
-        $('out').textContent = `≈ ${fmt(route.out)} ${token.symbol}`;
-        $('min').textContent = `${fmt(route.min)} ${token.symbol}`;
+        // Paying with GRAM, the site fee is part of what's paid. Paying with anything else, it's GRAM on top.
+        const paid = from.native ? Number(route.swapUnits + fee) / 1e9 : route.in;
+        $('pay').textContent = `${quote.exactOut ? '≈ ' : ''}${fmt(paid)} ${from.symbol}`;
+        $('out').textContent = `≈ ${fmt(route.out)} ${to.symbol}`;
+        $('min').textContent = `${fmt(route.min)} ${to.symbol}`;
         $('impact').textContent = route.impact === null ? '—' : route.impact > 0 && route.impact < 0.0001 ? '<0.01%' : pct(route.impact);
-        $('gas').textContent = `≈ ${fmt(route.gas)} TON`;
-        $('gas-hint').textContent = `${fmt(route.attached)} TON goes with the swap. what isn't used comes back.`;
-        $('fee').textContent = `${fmt(Number(quote.fee) / 1e9)} TON (${pct(Number(FEE_BPS) / 10_000)})`;
+        $('gas').textContent = `≈ ${fmt(route.gas)} GRAM`;
+        $('gas-hint').textContent = `${fmt(route.attached)} GRAM goes with the swap. what isn't used comes back.`;
+        $('fee').textContent = fee > 0n ? `${fmt(Number(fee) / 1e9)} GRAM (${pct(Number(FEE_BPS) / 10_000)})` : '—';
         $('status').textContent = tonConnectUI.account ? '' : 'connect a wallet to swap';
         show($('quote-card'), true);
     }
@@ -538,43 +633,57 @@ function pickRoute(routes) {
         show($('quote-card'), false);
     }
 
+    // The coin for a box, looked up once per text and shown. Null means stop here.
+    async function currentToken(side, text) {
+        const box = picked[side];
+        if (text === box.text && box.token) return box.token;
+        box.token = null;
+        if (side === 'to') $('accept').checked = false;
+        const found = await resolveToken(side, text);
+        // The visitor may have changed the box while the lists answered.
+        if (!found || $(side).value.trim() !== text) return null;
+        Object.assign(box, { token: found, text });
+        $(side === 'from' ? 'pay-unit' : 'get-unit').textContent = `(${found.symbol})`;
+        if (side === 'from') showPayWith(found);
+        else showToken(found);
+        return found;
+    }
+
     async function find() {
         $('error').classList.remove('visible');
         show($('pick-card'), false);
         dropQuote();
-        const text = $('token').value.trim();
-        const nano = toUnits($('amount').value);
         const slippage = Number($('slippage').value.replace(',', '.')) / 100;
-        const noAmount = 'type how much TON to pay, or how many tokens to get';
-        if (!text) return fail('type a ticker or paste a jetton address');
-        if (exactOut ? !$('want').value.trim() : !nano) return fail(noAmount);
+        const noAmount = 'type how much to pay, or how much to get';
+        if (!$('from').value.trim()) return fail('pick what to pay with');
+        if (!$('to').value.trim()) return fail('type a ticker or paste a jetton address');
+        if (!$(exactOut ? 'want' : 'amount').value.trim()) return fail(noAmount);
         if (!(slippage >= 0.001 && slippage <= 0.5)) return fail('slippage must be between 0.1 and 50');
 
         $('find').disabled = true;
         $('find').textContent = 'finding routes...';
         try {
-            if (text !== lookedUp || !token) {
-                token = null;
-                $('accept').checked = false;
-                token = await resolveToken(text);
-                lookedUp = text;
-                if (!token) return;
-                showToken(token);
-            }
-            if (token.blocked || !token.verified && !$('accept').checked) return;
+            const from = await currentToken('from', $('from').value.trim());
+            const to = from && await currentToken('to', $('to').value.trim());
+            if (!to) return;
+            if (from.raw === to.raw) return fail('pick two different coins');
+            if (to.blocked || !to.verified && !$('accept').checked) return;
 
-            // The jetton's decimals are only known now, so the token amount is read here.
-            const units = exactOut ? toUnits($('want').value, token.decimals) : nano - siteFee(nano);
+            // The coins' decimals are only known now, so the amounts are read here.
+            const payUnits = toUnits($('amount').value, from.decimals);
+            const units = exactOut ? toUnits($('want').value, to.decimals) : from.native && payUnits ? payUnits - siteFee(payUnits) : payUnits;
             if (!units) return fail(noAmount);
-            // One aggregator being down shouldn't hide the other's route.
+            // What one of the paid coin is worth in GRAM, for gas and the site fee. NaN or 0 when there's no price.
+            const gramPerIn = from.native ? 1 : from.usd / (await gramToken()).usd;
+            // One aggregator being down shouldn't hide the others' routes.
             const quiet = p => p.catch(e => { console.warn(e); return null; });
-            const routes = (await Promise.all([omnistonRoute, coffeeRoute, dedustRoute].map(ask => quiet(ask(units, exactOut, slippage))))).filter(Boolean);
+            const routes = (await Promise.all([omnistonRoute, coffeeRoute, dedustRoute].map(ask => quiet(ask(from, to, units, exactOut, slippage))))).filter(Boolean);
             if (!routes.length) return fail('no route found. the pools may be too small for this amount, or nobody trades this jetton yet');
-            const route = pickRoute(routes);
-            const fee = exactOut ? feeOnTop(route.swapNano) : siteFee(nano);
-            quote = { route, routes, fee, exactOut, at: Date.now() };
+            const route = pickRoute(routes, gramPerIn > 0 && Number.isFinite(gramPerIn) ? 1 / gramPerIn : 0);
+            const fee = feeFor({ fromGram: !!from.native, toGram: !!to.native, exactOut, payUnits, swapUnits: route.swapUnits, in: route.in, out: route.out, gramPerIn });
+            quote = { route, routes, from, to, fee, exactOut, at: Date.now() };
             // Fill in the amount the visitor didn't set. Setting .value fires no input event, so the quote stays.
-            if (exactOut) $('amount').value = fromUnits(route.swapNano + fee);
+            if (exactOut) $('amount').value = from.native ? fromUnits(route.swapUnits + fee) : fromUnits(route.swapUnits, from.decimals);
             else $('want').value = route.out.toLocaleString('en', { maximumSignificantDigits: 8, useGrouping: false });
             showQuote();
         } catch (e) {
@@ -606,6 +715,8 @@ function pickRoute(routes) {
             const link = Object.assign(document.createElement('a'), { href: `https://tonviewer.com/${account.address}`, target: '_blank', rel: 'noopener', textContent: 'see it on tonviewer' });
             $('status').append(link);
             q.at = 0;
+            // The wallet's balances change once the swap lands.
+            setTimeout(loadHoldings, 30_000);
         } catch (e) {
             $('status').textContent = e instanceof TON_CONNECT_UI.UserRejectsError ? 'cancelled in your wallet' : e.message;
         } finally {
@@ -616,12 +727,26 @@ function pickRoute(routes) {
     $('form').addEventListener('submit', e => { e.preventDefault(); find(); });
     $('accept').addEventListener('change', () => $('accept').checked && find());
     $('swap').addEventListener('click', swap);
-    for (const id of ['token', 'amount', 'want', 'slippage']) $(id).addEventListener('input', dropQuote);
+    for (const id of ['from', 'to', 'amount', 'want', 'slippage']) $(id).addEventListener('input', dropQuote);
     // Whichever amount was typed last is the one that's set. The other one gets worked out.
     $('amount').addEventListener('input', () => { exactOut = false; $('want').value = ''; });
     $('want').addEventListener('input', () => { exactOut = true; $('amount').value = ''; });
-    $('token').addEventListener('input', () => { show($('token-card'), false); show($('pick-card'), false); });
-    tonConnectUI.onStatusChange(() => quote && showQuote());
+    // A picked suggestion, a pasted address or link, or GRAM shows its coin straight away. Typing a ticker searches.
+    for (const side of ['from', 'to']) {
+        let timer;
+        $(side).addEventListener('input', () => {
+            show($(side === 'from' ? 'from-info' : 'token-card'), false);
+            $(side === 'from' ? 'pay-unit' : 'get-unit').textContent = '';
+            show($('pick-card'), false);
+            $('error').classList.remove('visible');
+            clearTimeout(timer);
+            const text = $(side).value.trim();
+            if (toRaw(text) || addressIn(text) || /^(gram|ton)$/i.test(text)) currentToken(side, text).catch(e => fail(e.message));
+            else if (text.length >= 2) timer = setTimeout(() => suggest(side, text), 350);
+        });
+    }
+    tonConnectUI.onStatusChange(() => { loadHoldings(); if (quote) showQuote(); });
+    currentToken('from', 'GRAM').catch(e => fail(e.message));
 </script>
 </body>
 </html>
