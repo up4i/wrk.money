@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gift tracker | wrk.money</title>
+    <meta name="description" content="a telegram message when a gift you track is sold, listed or moved.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://wrk.money/tools/tracker">
+    <meta property="og:title" content="gift tracker | wrk.money">
+    <meta property="og:description" content="a telegram message when a gift you track is sold, listed or moved.">
+    <meta name="theme-color" content="#06070b">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="/wrk_files/999circle.png" type="image/png">
+    <link rel="stylesheet" href="/wrk_files/site.css?v=4">
+    <style>
+        .container { max-width: 560px; }
+        .page-sub { margin-bottom: 22px; }
+        .wide { width: 100%; }
+        .hidden { display: none !important; }
+        .card + .card, #list .card { margin-top: 16px; }
+        #tg p { font-size: 0.8rem; margin: 10px 0 14px; }
+        #tg p a { color: var(--accent); }
+        .code { font-size: 1.4rem; letter-spacing: 4px; color: var(--accent); margin-bottom: 6px; user-select: all; }
+        .gift-head { display: flex; gap: 12px; align-items: center; }
+        .gift-head img { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; background: var(--glass-hover); }
+        .gift-head .grow { flex: 1; min-width: 0; }
+        .gift-name { color: var(--text); text-decoration: none; font-size: 0.9rem; }
+        .gift-name:hover { color: var(--accent); }
+        .gift-owner { color: var(--muted); font-size: 0.72rem; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .alerts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 0.78rem; }
+        .alerts label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+    </style>
+    <script>if (!localStorage.getItem('wrk_token')) location.replace('/login?from=/tools/tracker');</script>
+</head>
+<body>
+<script src="/wrk_files/site.js?v=5"></script>
+
+<div class="container">
+    <a href="/tools" class="back-link">← tools</a>
+    <h1>gift tracker</h1>
+    <p class="page-sub">get a telegram message when a gift you track is transferred, sold, listed for sale or moved to the blockchain.</p>
+
+    <div class="card" id="tg">
+        <span class="section-label">telegram</span>
+        <p id="tg-status">loading...</p>
+        <div class="hidden" id="tg-code">
+            <p>send this code to the bot on telegram: <a id="bot-link" target="_blank" rel="noopener" translate="no"></a></p>
+            <div class="code" id="code" translate="no"></div>
+            <div class="hint" id="code-time"></div>
+        </div>
+        <button class="btn hidden" id="tg-link" type="button">link telegram</button>
+        <button class="btn btn-danger hidden" id="tg-unlink" type="button">unlink</button>
+    </div>
+
+    <form class="card" id="add">
+        <div class="field">
+            <label for="gift">gift link</label>
+            <input type="text" id="gift" placeholder="https://t.me/nft/ScaredCat-845" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn btn-primary wide" id="add-btn">track</button>
+        <div class="error" id="error"></div>
+    </form>
+
+    <div id="list"></div>
+    <p class="hint hidden" id="empty">nothing tracked yet.</p>
+</div>
+
+<template id="row">
+    <div class="card">
+        <div class="gift-head">
+            <img alt="">
+            <div class="grow">
+                <a class="gift-name" target="_blank" rel="noopener" translate="no"></a>
+                <div class="gift-owner"></div>
+            </div>
+            <button class="btn btn-danger" type="button" data-remove>remove</button>
+        </div>
+        <div class="alerts">
+            <label><input type="checkbox" data-alert="transfer"> transferred</label>
+            <label><input type="checkbox" data-alert="sold"> sold</label>
+            <label><input type="checkbox" data-alert="listed"> listed for sale</label>
+            <label><input type="checkbox" data-alert="chain"> moved on-chain</label>
+        </div>
+    </div>
+</template>
+
+<div class="console-footer">TRACK.READY // WRK_07</div>
+
+<script>
+    const API = 'https://api.wrk.money';
+    const $ = id => document.getElementById(id);
+    const error = $('error');
+    let polling;
+
+    async function api(path, method = 'GET', body) {
+        const res = await fetch(API + path, {
+            method,
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('wrk_token')}`, ...(body && { 'Content-Type': 'application/json' }) },
+            body: body && JSON.stringify(body),
+        });
+        // Members only. A dead session goes back to login.
+        if (res.status === 401) { localStorage.removeItem('wrk_token'); location.replace('/login?from=/tools/tracker'); }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'something went wrong');
+        return data;
+    }
+
+    function showError(err) {
+        error.textContent = err.message;
+        error.classList.add('visible');
+    }
+
+    function render(data) {
+        $('tg-status').textContent = !data.bot ? "the telegram bot isn't set up yet."
+            : data.linked ? 'alerts go to your telegram.' : 'link your telegram so the bot can message you.';
+        $('tg-link').classList.toggle('hidden', !data.bot || data.linked);
+        $('tg-unlink').classList.toggle('hidden', !data.linked);
+        if (data.linked) { $('tg-code').classList.add('hidden'); clearInterval(polling); }
+
+        const list = $('list');
+        list.replaceChildren(...data.gifts.map(gift => {
+            const row = $('row').content.firstElementChild.cloneNode(true);
+            row.querySelector('img').src = `https://nft.fragment.com/gift/${gift.key}.webp`;
+            const name = row.querySelector('.gift-name');
+            name.textContent = gift.name || gift.key;
+            name.href = `https://t.me/nft/${gift.key}`;
+            const owner = row.querySelector('.gift-owner');
+            if (gift.owner) {
+                const who = document.createElement('span');
+                who.translate = false;
+                who.textContent = gift.owner;
+                owner.append('owner:', ' ', who);
+            } else owner.textContent = 'not checked yet';
+            for (const box of row.querySelectorAll('[data-alert]')) {
+                box.checked = gift[box.dataset.alert];
+                box.addEventListener('change', () => api('/track', 'PUT', { gift: gift.key, [box.dataset.alert]: box.checked }).catch(err => {
+                    box.checked = !box.checked;
+                    showError(err);
+                }));
+            }
+            row.querySelector('[data-remove]').addEventListener('click', () => api(`/track/${gift.key}`, 'DELETE').then(render, showError));
+            return row;
+        }));
+        $('empty').classList.toggle('hidden', data.gifts.length > 0);
+    }
+
+    $('add').addEventListener('submit', async e => {
+        e.preventDefault();
+        const gift = $('gift').value.trim();
+        if (!gift) return;
+        const btn = $('add-btn');
+        btn.disabled = true;
+        btn.textContent = 'adding...';
+        error.classList.remove('visible');
+        try {
+            render(await api('/track', 'PUT', { gift }));
+            $('gift').value = '';
+        } catch (err) {
+            showError(err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'track';
+        }
+    });
+
+    // The code is shown here and sent in a chat, so it never sits in a link. The page notices once the bot has it.
+    $('tg-link').addEventListener('click', async () => {
+        try {
+            const { code, bot, minutes } = await api('/track/link', 'POST');
+            $('code').textContent = code;
+            $('bot-link').textContent = `@${bot}`;
+            $('bot-link').href = `https://t.me/${bot}`;
+            $('code-time').textContent = `it works for ${minutes} minutes.`;
+            $('tg-code').classList.remove('hidden');
+            clearInterval(polling);
+            const stop = Date.now() + minutes * 60_000;
+            polling = setInterval(() => Date.now() > stop ? clearInterval(polling) : api('/track').then(render).catch(() => {}), 5000);
+        } catch (err) {
+            showError(err);
+        }
+    });
+
+    $('tg-unlink').addEventListener('click', () => api('/track/link', 'DELETE').then(render, showError));
+
+    api('/track').then(render, showError);
+</script>
+</body>
+</html>

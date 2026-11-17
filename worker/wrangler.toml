@@ -12,10 +12,12 @@ bucket_name = "wrk-files"
 
 [vars]
 ALLOWED_ORIGIN = "https://wrk.money"
+# The gift tracker's bot, without the @. Its token is the secret TG_BOT_TOKEN.
+TG_BOT_USERNAME = "wrkagent"
 
-# Clears expired uploads out of R2.
+# Clears expired uploads out of R2 daily, and checks tracked gifts every minute.
 [triggers]
-crons = ["0 4 * * *"]
+crons = ["0 4 * * *", "* * * * *"]
 
 [[routes]]
 pattern = "api.wrk.money/*"
