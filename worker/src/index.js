@@ -1,5 +1,6 @@
 import { safeLink, securePage } from './security.js';
 import { cleanPrefs } from './prefs.js';
+import { giftKey, fetchGift, storedScore, readWatches, updateWatches, saveWatch, trackedList, trackGifts, botUpdate, sha256, MAX_TRACKED, LINK_SECONDS, TRACK_CRON } from './gifts.js';
 
 const LIMITS = {
   storageBytes: 10 * 1024 * 1024 * 1024,
@@ -482,6 +483,8 @@ async function recordVisit(slug, env, corsHeaders) {
   return json({ visits: count }, 200, corsHeaders);
 }
 
+const BAD_GIFT = 'invalid telegram gift URL — expected https://t.me/nft/GiftName-Number';
+
 // The one clean form of a t.me/nft link, or null when it isn't one.
 function cleanGiftLink(value) {
   const slug = String(value).trim().match(/^(?:https?:\/\/)?t\.me\/nft\/([a-zA-Z0-9]+-\d+)(?:[/?#]|$)/i)?.[1];
@@ -504,13 +507,12 @@ async function updateProfile(slug, req, env, corsHeaders) {
   if (!Array.isArray(body.bioStatements) || body.bioStatements.length < 1)
     return err('at least one bio statement is required', 400, corsHeaders);
 
-  const badGift = 'invalid telegram gift URL — expected https://t.me/nft/GiftName-Number';
   const giftInput = String(body.tgGiftUrl || '').trim();
   const tgGiftUrl = cleanGiftLink(giftInput);
-  if (giftInput && !tgGiftUrl) return err(badGift, 400, corsHeaders);
+  if (giftInput && !tgGiftUrl) return err(BAD_GIFT, 400, corsHeaders);
 
   const pinnedGifts = Array.isArray(body.pinnedGifts) ? [...new Set(body.pinnedGifts.map(cleanGiftLink))] : existing.pinnedGifts || [];
-  if (pinnedGifts.includes(null)) return err(badGift, 400, corsHeaders);
+  if (pinnedGifts.includes(null)) return err(BAD_GIFT, 400, corsHeaders);
   if (pinnedGifts.length > 6) return err('you can pin up to 6 gifts', 400, corsHeaders);
 
   // Only a definite 404 rejects, so a Fragment outage can't block profile saves.
@@ -919,6 +921,83 @@ async function resolveShortUrl(slug, env) {
   return Response.redirect(target, 302);
 }
 
+// ── Gift tools ────────────────────────────────────────────────────────────────
+
+const noGift = key => `that telegram gift does not exist: https://t.me/nft/${key}`;
+
+// The monochrome calculator: clue.tg's stored score, and the traits from the gift's page.
+// With no stored score the page works one out from the gift's animation, which is too much CPU for a worker.
+async function getMono(input, req, env, corsHeaders) {
+  if (!await requireAuth(req, env)) return err('unauthorized', 401, corsHeaders);
+  const key = giftKey(input);
+  if (!key) return err(BAD_GIFT, 400, corsHeaders);
+  const [score, page] = await Promise.all([storedScore(env, key), fetchGift(key)]);
+  if (page?.missing) return err(noGift(key), 404, corsHeaders);
+  return json({ key, score, name: page?.name || null, model: page?.model || '', backdrop: page?.backdrop || '', symbol: page?.symbol || '' }, 200, corsHeaders);
+}
+
+async function getTracked(req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  return json(await trackedList(env, user.slug), 200, corsHeaders);
+}
+
+// Adds a gift to the tracker, or changes which alerts it sends.
+async function putTracked(req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  const body = await req.json().catch(() => null);
+  const key = giftKey(body?.gift);
+  if (!key) return err(BAD_GIFT, 400, corsHeaders);
+
+  // Only a gift new to the list is looked up, and only a definite "no such gift" refuses it, so a t.me outage can't.
+  let name = (await readWatches(env)).members[user.slug]?.gifts[key]?.name;
+  if (!name) {
+    const page = await fetchGift(key);
+    if (page?.missing) return err(noGift(key), 400, corsHeaders);
+    name = page?.name || key;
+  }
+  const saved = await updateWatches(env, data => saveWatch(data, user.slug, key, body, name, Date.now()));
+  if (!saved) return err(`you can track up to ${MAX_TRACKED} gifts`, 400, corsHeaders);
+  return json(await trackedList(env, user.slug), 200, corsHeaders);
+}
+
+async function deleteTracked(key, req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  await updateWatches(env, data => {
+    if (!data.members[user.slug]?.gifts[key]) return false;
+    delete data.members[user.slug].gifts[key];
+  });
+  return json(await trackedList(env, user.slug), 200, corsHeaders);
+}
+
+// The member sends this code to the bot, so the link is never in a URL.
+async function linkTelegram(req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  if (!env.TG_BOT_USERNAME) return err('the bot is not set up yet', 503, corsHeaders);
+  const code = nanoid(8, CODE_CHARS);
+  const codeHash = await sha256(code);
+  const now = Date.now();
+  await updateWatches(env, data => {
+    // One live code per member. Ones that ran out are cleared on the way.
+    for (const [hash, link] of Object.entries(data.links)) if (link.slug === user.slug || link.expires < now) delete data.links[hash];
+    data.links[codeHash] = { slug: user.slug, expires: now + LINK_SECONDS * 1000 };
+  });
+  return json({ code, bot: env.TG_BOT_USERNAME, minutes: LINK_SECONDS / 60 }, 200, corsHeaders);
+}
+
+async function unlinkTelegram(req, env, corsHeaders) {
+  const user = await requireAuth(req, env);
+  if (!user) return err('unauthorized', 401, corsHeaders);
+  await updateWatches(env, data => {
+    if (!data.members[user.slug]?.chat) return false;
+    delete data.members[user.slug].chat;
+  });
+  return json(await trackedList(env, user.slug), 200, corsHeaders);
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default {
@@ -968,6 +1047,9 @@ export default {
       upstream.headers.delete('Accept-Encoding');
       return securePage(await fetch(upstream), path);
     }
+
+    // Telegram's webhook sends no Origin, and comes from few enough IPs to trip the rate limit, which costs a KV write each time.
+    if (req.method === 'POST' && path === '/tg/webhook') return botUpdate(req, env);
 
     // Only the API checks Origin. Site files are public, and web wallets fetch tonconnect-manifest.json from their own origin.
     if (origin && origin !== allowedOrigin) {
@@ -1023,6 +1105,14 @@ export default {
     if (req.method === 'POST' && path === '/s') return createShortUrl(req, env, corsHeaders);
     if (req.method === 'GET'  && path.startsWith('/s/')) return resolveShortUrl(path.slice(3), env);
 
+    // Gift tools
+    if (req.method === 'GET'    && path === '/gifts/mono')       return getMono(url.searchParams.get('gift'), req, env, corsHeaders);
+    if (req.method === 'GET'    && path === '/track')            return getTracked(req, env, corsHeaders);
+    if (req.method === 'PUT'    && path === '/track')            return putTracked(req, env, corsHeaders);
+    if (req.method === 'POST'   && path === '/track/link')       return linkTelegram(req, env, corsHeaders);
+    if (req.method === 'DELETE' && path === '/track/link')       return unlinkTelegram(req, env, corsHeaders);
+    if (req.method === 'DELETE' && path.startsWith('/track/'))   return deleteTracked(path.slice(7), req, env, corsHeaders);
+
     if (path === '/usage') {
       const usage = await getUsage(env);
       return json({ usage, limits: LIMITS }, 200, corsHeaders);
@@ -1032,6 +1122,6 @@ export default {
   },
 
   scheduled(event, env) {
-    return deleteExpiredFiles(env);
+    return event.cron === TRACK_CRON ? trackGifts(env, event.scheduledTime) : deleteExpiredFiles(env);
   },
 };

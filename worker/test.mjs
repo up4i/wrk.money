@@ -6,8 +6,10 @@ import vm from 'node:vm';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const asModule = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const security = asModule(read('./src/security.js'));
-const source = read('./src/index.js').replace('./security.js', security).replace('./prefs.js', asModule(read('./src/prefs.js').replace('./security.js', security)));
+const giftsModule = asModule(read('./src/gifts.js'));
+const source = read('./src/index.js').replace('./security.js', security).replace('./prefs.js', asModule(read('./src/prefs.js').replace('./security.js', security))).replace('./gifts.js', giftsModule);
 const worker = (await import(asModule(source))).default;
+const gifts = await import(giftsModule);
 
 function makeEnv(seed = {}) {
   const store = new Map(Object.entries(seed));
@@ -644,17 +646,23 @@ globalThis.fetch = realFetch;
 }
 
 // A bucket that slices ranges and pages listings like R2, and only returns metadata when asked.
+// A write given onlyIf.etagMatches only lands on the copy that etag came from.
 function makeBucket(pageSize = 2) {
   const objects = new Map();
   return {
-    objects, reads: 0,
-    async put(key, bytes, { customMetadata }) { objects.set(key, { bytes: new Uint8Array(bytes), customMetadata }); },
+    objects, reads: 0, writes: 0,
+    async put(key, bytes, { customMetadata, onlyIf } = {}) {
+      if (onlyIf && objects.get(key)?.etag !== onlyIf.etagMatches) return null;
+      const object = { bytes: typeof bytes === 'string' ? new TextEncoder().encode(bytes) : new Uint8Array(bytes), customMetadata, etag: `e${++this.writes}` };
+      objects.set(key, object);
+      return object;
+    },
     async get(key, { range } = {}) {
       this.reads++;
       const object = objects.get(key);
       if (!object) return null;
       const { offset = 0, length = object.bytes.length } = range ?? {};
-      return { body: object.bytes.slice(offset, offset + length) };
+      return { body: object.bytes.slice(offset, offset + length), etag: object.etag };
     },
     async list({ cursor = '', include = [] } = {}) {
       const keys = [...objects.keys()].sort().filter(key => key > cursor);
@@ -1098,6 +1106,302 @@ const getStored = (env, id, headers = {}) => call(env, `https://api.wrk.money/d/
     assert.ok(rule.test(safe), safe);
   for (const bad of ['', 'javascript:alert(1)', 'JaVaScRiPt:alert(1)', ' javascript:alert(1)', '//evil.example', '/\\evil.example', 'https://evil.example', 'data:text/html,x'])
     assert.ok(!rule.test(bad), bad);
+}
+
+// Gift pages and market posts, the way t.me writes them.
+const giftPage = (owner, name = 'Scared Cat #845') => `<meta property="og:title" content="${name}"><table class="tgme_gift_table"><tr><th>Owner</th><td>${owner}</td></tr>`
+  + '<tr><th>Model</th><td>Weedcat <mark>3.5%</mark></td></tr><tr><th>Backdrop</th><td>Shamrock Green <mark>1.5%</mark></td></tr><tr><th>Symbol</th><td>Scarecrow <mark>2%</mark></td></tr></table>';
+const named = name => `<span dir="auto">${name}</span>`;
+const wallet = address => `<span class="tgme_gift_owner_address">${address}</span>`;
+const channelPost = (channel, id, text, time) => `<div class="tgme_widget_message js-widget_message" data-post="${channel}/${id}" data-view="x">`
+  + `<div class="tgme_widget_message_text js-message_text" dir="auto">${text}</div><a class="tgme_widget_message_date" href="https://t.me/${channel}/${id}"><time datetime="${time}" class="time">18:20</time></a></div>`;
+const soldPost = (link, price) => `<i class="emoji"><b>🎁</b></i> Gift Sold<br/><br/><a href="${link}"><b>Gift</b></a><br/><i class="emoji"><b>🤑</b></i>Price: <b>${price}</b> $Gram`;
+const listedPost = (link, price) => `New Gift Listed<br/><br/><a href="${link}" target="_blank">Gift</a><br/>Price: ${price} &#036;TON<br/>Check it out here: <a href="https://t.me/tonnel_network_bot/gift?startapp=1">buy</a>`;
+
+// Gift links, gift pages and market posts are read the way t.me, Fragment and the markets write them.
+{
+  const { giftKey, parseGiftPage, parseChannel, fragmentPrice } = gifts;
+  for (const link of ['https://t.me/nft/ScaredCat-845', 't.me/nft/ScaredCat-845?ref=1', 'scaredcat-845', ' ScaredCat-0845 ', 'http://telegram.me/nft/ScaredCat-845',
+    'https://nft.fragment.com/gift/scaredcat-845.lottie.json', 'fragment.com/gift/scaredcat-845'])
+    assert.equal(giftKey(link), 'scaredcat-845', link);
+  for (const bad of [null, '', 'scaredcat', 'scaredcat-0', 'scared cat-845', 'https://evil.example/nft/ScaredCat-845', 'https://t.me/nft/Scared"Cat-845'])
+    assert.equal(giftKey(bad), null, bad);
+
+  assert.deepEqual(parseGiftPage(giftPage(named('safonov <i class="emoji" style="x"><b>✌️</b></i> &amp; co')), 'scaredcat-845'), {
+    name: 'Scared Cat #845', model: 'Weedcat', backdrop: 'Shamrock Green', symbol: 'Scarecrow', owner: { key: 'name:safonov ✌️ & co', label: 'safonov ✌️ & co' },
+  });
+  assert.deepEqual(parseGiftPage(giftPage('<a href="https://t.me/SomeUser"><span dir="auto">Some User</span></a>'), 'scaredcat-845').owner, { key: 'tg:someuser', label: '@SomeUser' });
+  assert.deepEqual(parseGiftPage(giftPage(wallet('fugui.t.me')), 'scaredcat-845').owner, { key: 'ton:fugui.t.me', label: 'fugui.t.me', chain: true });
+  for (const other of ['scaredcat-84', 'scaredcat-45']) assert.equal(parseGiftPage(giftPage(named('a')), other), null, `${other} is another gift`);
+
+  const posts = parseChannel([
+    channelPost('mrktnotification', 10714222, soldPost('http://telegram.me/nft/LunarSnake-121321', '4,104.68').replace('$Gram', 'GRAM'), '2026-11-17T18:20:09+00:00'),
+    channelPost('TonnelGift', 1072822, listedPost('https://t.me/nft/PreciousPeach-987', 275), '2026-11-17T18:21:00+00:00'),
+    channelPost('TonnelGift', 1072823, ' Suitcase Unupgraded gift listed<br/>Price: 120 TON ', '2026-11-17T18:22:00+00:00'),
+  ].join('\n'));
+  assert.deepEqual(posts.map(p => [p.id, p.gift, p.kind, p.price]), [
+    [10714222, 'lunarsnake-121321', 'sold', 4104.68], [1072822, 'preciouspeach-987', 'listed', 275], [1072823, null, null, 120],
+  ]);
+  assert.equal(posts[0].time, Date.parse('2026-11-17T18:20:09Z'));
+
+  assert.equal(fragmentPrice('<th>Sell Price</th><div class="table-cell-value tm-value icon-before icon-ton">1,250.5</div>'), 1250.5);
+  assert.equal(fragmentPrice('<th>Sale Price</th><div class="table-cell-value tm-value icon-before icon-ton">900</div>'), null, 'a past sale is no listing');
+}
+
+// The tracker reads every source once a run, sends each alert once to whoever asked for that kind, and never touches KV.
+{
+  const env = makeEnv();
+  env.WRK_FILES = makeBucket();
+  env.TG_BOT_TOKEN = '123:test';
+  const owners = { 'scaredcat-845': named('Alice'), 'toybear-7': named('Bob') };
+  const channels = { TonnelGift: [], portals_notifications: [], mrktnotification: [] };
+  const say = (channel, id, text, time) => channels[channel].push({ id, text, time });
+  let fragment = '<th>Sale Price</th>';
+  const sent = [], hooks = [], asked = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input?.url ?? input);
+    asked.push(url);
+    let m;
+    if (url.startsWith('https://api.telegram.org/bot123:test/')) {
+      (url.endsWith('/setWebhook') ? hooks : sent).push(JSON.parse(init.body));
+      return Response.json({ ok: true });
+    }
+    if ((m = url.match(/^https:\/\/t\.me\/nft\/(.+)$/))) return new Response(giftPage(owners[m[1]], m[1] === 'toybear-7' ? 'Toy Bear #7' : 'Scared Cat #845'));
+    // A channel page holds its 20 newest posts, or the 20 before a post.
+    if ((m = url.match(/^https:\/\/t\.me\/s\/(\w+)(?:\?before=(\d+))?$/)))
+      return new Response(channels[m[1]].filter(p => !m[2] || p.id < Number(m[2])).slice(-20).map(p => channelPost(m[1], p.id, p.text, p.time)).join(''));
+    if (url === 'https://fragment.com/gift/scaredcat-845') return new Response(fragment);
+    if (url === 'https://tonapi.io/v2/accounts/EQSale') return Response.json({ address: '0:5a1e', interfaces: ['nft_sale_getgems_v4'] });
+    if (url === 'https://tonapi.io/v2/blockchain/accounts/0%3A5a1e/methods/get_fix_price_data_v4') return Response.json({ decoded: { full_price: '5000000000' } });
+    if (url.startsWith('https://tonapi.io/v2/accounts/')) return Response.json({ address: '0:1', interfaces: ['wallet_v4r2'] });
+    return new Response('not found', { status: 404 });
+  };
+
+  const since = Date.parse('2026-11-17T18:00:00Z');
+  const watch = alerts => ({ name: 'Scared Cat #845', since, transfer: false, sold: false, listed: false, chain: false, ...alerts });
+  const all = { transfer: true, sold: true, listed: true, chain: true };
+  await env.WRK_FILES.put('track/watches.json', JSON.stringify({ links: {}, members: {
+    foo: { chat: 111, gifts: { 'scaredcat-845': watch(all) } },
+    bar: { chat: 222, gifts: { 'scaredcat-845': watch({ sold: true }) } },
+    // No chat linked, so nothing of theirs is checked.
+    baz: { gifts: { 'toybear-7': watch(all) } },
+  } }));
+  for (let id = 1; id <= 25; id++) say('portals_notifications', id, soldPost('https://t.me/nft/scaredcat-845', id), '2026-11-17T17:00:00Z');
+  say('TonnelGift', 1, listedPost('https://t.me/nft/ScaredCat-845', 1), '2026-11-17T17:00:00Z');
+  say('mrktnotification', 1, soldPost('https://t.me/nft/other-1', 1), '2026-11-17T17:00:00Z');
+
+  // Runs at 18:30 plus some minutes. Fragment is read on whole 5 minutes.
+  const run = async minutes => {
+    sent.length = 0;
+    await worker.scheduled({ cron: '* * * * *', scheduledTime: Date.parse('2026-11-17T18:30:00Z') + minutes * 60_000 }, env);
+    return sent.map(m => [m.chat_id, m.text]);
+  };
+  const state = () => JSON.parse(new TextDecoder().decode(env.WRK_FILES.objects.get('track/state.json').bytes));
+
+  assert.deepEqual(await run(1), [], 'the first run only notes where everything stands, old sales included');
+  assert.equal(hooks.length, 1);
+  assert.equal(hooks[0].url, 'https://api.wrk.money/tg/webhook');
+  assert.match(hooks[0].secret_token, /^[0-9a-f]{32}$/);
+  assert.equal(state().gifts['scaredcat-845'].owner.label, 'Alice');
+  assert.ok(!asked.some(url => url.includes('toybear')), "a member with no chat linked costs nothing");
+
+  const writes = env.WRK_FILES.writes;
+  assert.deepEqual(await run(2), [], 'nothing new');
+  assert.equal(env.WRK_FILES.writes, writes, 'and nothing written');
+  assert.equal(hooks.length, 1, 'the webhook is set once');
+
+  owners['scaredcat-845'] = named('Bob');
+  assert.deepEqual(await run(3), [[111, '🔁 <b>Scared Cat #845</b> was transferred to Bob']]);
+  assert.deepEqual(sent[0].reply_markup.inline_keyboard[0][0], { text: 'view gift', url: 'https://t.me/nft/scaredcat-845' });
+
+  // A sale, then the buyer's name on the page: one sold alert, not a transfer as well. A post from before the watch began is left out.
+  say('portals_notifications', 26, soldPost('https://t.me/nft/scaredcat-845', '29.24'), '2026-11-17T18:33:30Z');
+  say('portals_notifications', 27, soldPost('https://t.me/nft/scaredcat-845', '1'), '2026-11-17T17:59:00Z');
+  owners['scaredcat-845'] = named('Carol');
+  const sold = '💰 <b>Scared Cat #845</b> sold on Portals for 29.24 GRAM — new owner: Carol';
+  assert.deepEqual(await run(4), [[111, sold], [222, sold]]);
+
+  // Within 10 minutes of a sale a move isn't sent, since it's most likely the sale's.
+  owners['scaredcat-845'] = named('Dave');
+  assert.deepEqual(await run(9), []);
+
+  // 30 posts since the last run is more than a page, and the listing is on the older one.
+  for (let id = 2; id <= 31; id++) say('TonnelGift', id, id === 5 ? listedPost('https://t.me/nft/ScaredCat-845', 275) : listedPost(`https://t.me/nft/Other-${id}`, 1), '2026-11-17T18:44:00Z');
+  owners['scaredcat-845'] = named('Gift Relayer');
+  assert.deepEqual(await run(15), [[111, '🏷 <b>Scared Cat #845</b> was listed on Tonnel for 275 GRAM'], [111, '🔁 <b>Scared Cat #845</b> was transferred to Tonnel']]);
+  assert.ok(!asked.includes('https://fragment.com/gift/scaredcat-845'), 'Fragment is only read for gifts on the blockchain');
+
+  // Sold while the market still holds it: the market's account isn't the new owner.
+  // A gift first seen in the same run as its sale has no earlier owner to compare, so whoever the page shows may be the seller.
+  const watches = JSON.parse(new TextDecoder().decode(env.WRK_FILES.objects.get('track/watches.json').bytes));
+  watches.members.foo.gifts['toybear-7'] = watch({ ...all, name: 'Toy Bear #7' });
+  await env.WRK_FILES.put('track/watches.json', JSON.stringify(watches));
+  say('mrktnotification', 2, soldPost('http://telegram.me/nft/ScaredCat-845', '4.68').replace('$Gram', 'GRAM'), '2026-11-17T18:45:30Z');
+  say('mrktnotification', 3, soldPost('http://telegram.me/nft/ToyBear-7', '2').replace('$Gram', 'GRAM'), '2026-11-17T18:45:40Z');
+  const held = '💰 <b>Scared Cat #845</b> sold on MRKT for 4.68 GRAM';
+  assert.deepEqual(await run(16), [[111, held], [222, held], [111, '💰 <b>Toy Bear #7</b> sold on MRKT for 2 GRAM']]);
+  // Nor is a market account that takes it after the sale, nor the same person still shown.
+  say('mrktnotification', 4, soldPost('http://telegram.me/nft/ToyBear-7', '3').replace('$Gram', 'GRAM'), '2026-11-17T18:46:40Z');
+  owners['toybear-7'] = named('MRKT Bank');
+  assert.deepEqual(await run(17), [[111, '💰 <b>Toy Bear #7</b> sold on MRKT for 3 GRAM']]);
+  owners['toybear-7'] = named('Erin');
+  await run(18);
+  say('mrktnotification', 5, soldPost('http://telegram.me/nft/ToyBear-7', '4').replace('$Gram', 'GRAM'), '2026-11-17T18:48:40Z');
+  assert.deepEqual(await run(19), [[111, '💰 <b>Toy Bear #7</b> sold on MRKT for 4 GRAM']]);
+
+  owners['scaredcat-845'] = wallet('UQAovb39sD1NDenojl2zo2oI-PmX-Dj1A1ZWMBqMz9k-EuOW');
+  fragment = '<th>Sell Price</th><div class="tm-value icon-before icon-ton">1,250</div>';
+  assert.deepEqual(await run(20), [
+    [111, '⛓ <b>Scared Cat #845</b> was moved to the TON blockchain — wallet: <code>UQAovb39sD1NDenojl2zo2oI-PmX-Dj1A1ZWMBqMz9k-EuOW</code>'],
+    [111, '🏷 <b>Scared Cat #845</b> was listed on Fragment for 1,250 GRAM'],
+  ]);
+  asked.length = 0;
+  assert.deepEqual(await run(21), [], 'Fragment waits for the next whole 5 minutes');
+  assert.ok(!asked.includes('https://fragment.com/gift/scaredcat-845'));
+  assert.deepEqual(await run(25), [], 'a listing still up is not sent again');
+
+  // Listed on GetGems means owned by a GetGems sale contract. That's the listing, with no transfer alert.
+  owners['scaredcat-845'] = wallet('EQSale');
+  assert.deepEqual(await run(26), [[111, '🏷 <b>Scared Cat #845</b> was listed on GetGems for 5 GRAM']]);
+
+  // A gift nobody watches any more is forgotten.
+  await env.WRK_FILES.put('track/watches.json', JSON.stringify({ links: {}, members: {} }));
+  await run(27);
+  assert.deepEqual(state().gifts, {});
+  assert.deepEqual(env.calls, { get: 0, put: 0 }, 'all of it lives in R2');
+
+  // Without a bot there's nobody to tell, so a run does nothing.
+  delete env.TG_BOT_TOKEN;
+  asked.length = 0;
+  await run(28);
+  assert.deepEqual(asked, []);
+  globalThis.fetch = realFetch;
+}
+
+// Members link the bot with a one-time code typed in a chat, and only Telegram can reach the webhook.
+{
+  const env = await fileEnv();
+  env.TG_BOT_TOKEN = '123:test';
+  globalThis.fetch = async input => {
+    const url = String(input?.url ?? input);
+    const key = url.match(/^https:\/\/t\.me\/nft\/(.+)$/)?.[1];
+    if (key === 'missing-1') return new Response('', { status: 302, headers: { Location: 'https://t.me/' } });
+    if (key === 'outage-5') return new Response('down', { status: 502 });
+    if (key) return new Response(giftPage(named('Alice'), key === 'scaredcat-845' ? 'Scared Cat #845' : `Gift #${key.split('-')[1]}`));
+    return new Response('not found', { status: 404 });
+  };
+  // Each from its own address, so the rate limit stays out of it.
+  let ip = 0;
+  const api = (path, method = 'GET', body, headers = env.auth) => call(env, `https://api.wrk.money${path}`, {
+    method, headers: { ...headers, 'Content-Type': 'application/json', 'CF-Connecting-IP': `10.0.0.${ip++}` }, ...(body && { body: JSON.stringify(body) }),
+  });
+
+  for (const [path, method] of [['/track', 'GET'], ['/track', 'PUT'], ['/track/link', 'POST'], ['/gifts/mono?gift=scaredcat-845', 'GET']])
+    assert.equal((await api(path, method, method === 'GET' ? null : {}, {})).status, 401, `${method} ${path} needs a session`);
+  assert.equal((await api('/track/link', 'POST')).status, 503, 'no bot yet');
+  env.TG_BOT_USERNAME = 'wrkgiftsbot';
+  const { code, bot, minutes } = await (await api('/track/link', 'POST')).json();
+  assert.match(code, /^[A-HJKMNP-Z2-9]{8}$/);
+  assert.deepEqual([bot, minutes], ['wrkgiftsbot', 10]);
+  assert.ok(!new TextDecoder().decode(env.WRK_FILES.objects.get('track/watches.json').bytes).includes(code), 'the code is kept hashed');
+
+  const secret = (await gifts.sha256('webhook:123:test')).slice(0, 32);
+  const tg = (text, headers = { 'X-Telegram-Bot-Api-Secret-Token': secret }) => call(env, 'https://api.wrk.money/tg/webhook', {
+    method: 'POST', headers, body: JSON.stringify({ message: { chat: { id: 555, type: 'private' }, text } }),
+  });
+  const reply = async text => {
+    const answer = await (await tg(text)).json();
+    assert.deepEqual([answer.method, answer.chat_id, answer.parse_mode], ['sendMessage', 555, 'HTML']);
+    return answer.text;
+  };
+  const kvWrites = env.calls.put;
+  assert.equal((await tg(code, {})).status, 403, 'without the secret Telegram was given');
+  assert.equal((await tg(code, { 'X-Telegram-Bot-Api-Secret-Token': 'nope' })).status, 403);
+  assert.match(await reply('/list'), /press "link telegram"/, 'an unlinked chat is told how to link');
+  assert.match(await reply('/start ' + code.toLowerCase()), /^linked to <b>foo<\/b>/);
+  assert.match(await reply(code), /wrong or has run out/, 'a code works once');
+  // A chat belongs to one member: linking it for someone else moves it.
+  const moved = { members: { foo: { chat: 555, gifts: {} } }, links: { h: { slug: 'bar', expires: Date.now() + 1000 }, old: { slug: 'baz', expires: Date.now() - 1 } } };
+  assert.equal(gifts.linkChat(moved, 'old', 555, Date.now()), false, 'a code that ran out');
+  assert.equal(gifts.linkChat(moved, 'h', 555, Date.now()), 'bar');
+  assert.deepEqual([moved.members.foo.chat, moved.members.bar.chat, moved.links.h], [undefined, 555, undefined]);
+  assert.equal(env.calls.put, kvWrites, "Telegram's requests skip the rate limit and its KV write");
+
+  // Adding gifts: every alert starts on, a change keeps the rest, and only a definite "no such gift" is refused.
+  let list = await (await api('/track', 'PUT', { gift: 'https://t.me/nft/ScaredCat-845' })).json();
+  assert.deepEqual(list, { bot: 'wrkgiftsbot', linked: true, gifts: [{ key: 'scaredcat-845', name: 'Scared Cat #845', owner: null, transfer: true, sold: true, listed: true, chain: true }] });
+  list = await (await api('/track', 'PUT', { gift: 'scaredcat-845', sold: false, chain: 'yes' })).json();
+  assert.deepEqual(list.gifts.map(g => [g.sold, g.chain, g.transfer]), [[false, true, true]]);
+  const missing = await api('/track', 'PUT', { gift: 'missing-1' });
+  assert.equal(missing.status, 400);
+  assert.equal((await missing.json()).error, 'that telegram gift does not exist: https://t.me/nft/missing-1');
+  assert.equal((await api('/track', 'PUT', { gift: 'outage-5' })).status, 200, "a t.me outage can't block adding");
+  assert.equal((await api('/track', 'PUT', { gift: 'not a gift' })).status, 400);
+  for (let n = 1; n <= 18; n++) assert.equal((await api('/track', 'PUT', { gift: `gift-${n}` })).status, 200);
+  const full = await api('/track', 'PUT', { gift: 'gift-19' });
+  assert.equal((await full.json()).error, 'you can track up to 20 gifts');
+  assert.equal((await api('/track', 'PUT', { gift: 'gift-3', listed: false })).status, 200, 'a full list can still change');
+
+  // Two changes at once: the write that read the older copy tries again, so neither is lost.
+  const bucket = env.WRK_FILES, realPut = bucket.put;
+  bucket.put = async function (key, value, opts) {
+    bucket.put = realPut;
+    const other = JSON.parse(new TextDecoder().decode(bucket.objects.get(key).bytes));
+    other.members.someone = { gifts: { 'other-1': {} } };
+    await realPut.call(bucket, key, JSON.stringify(other));
+    return realPut.call(bucket, key, value, opts);
+  };
+  await api('/track', 'PUT', { gift: 'gift-4', sold: false });
+  const both = JSON.parse(new TextDecoder().decode(bucket.objects.get('track/watches.json').bytes));
+  assert.equal(both.members.foo.gifts['gift-4'].sold, false);
+  assert.ok(both.members.someone, 'the other change is kept');
+
+  list = await (await api('/track/outage-5', 'DELETE')).json();
+  assert.equal(list.gifts.length, 19);
+  assert.ok(!list.gifts.some(g => g.key === 'outage-5'));
+
+  // clue.tg's stored scores, one byte per gift number, and what the bot and the calculator say about them.
+  const scores = new Uint8Array(846).fill(255);
+  scores[845] = 76;
+  await bucket.put('mono/scaredcat', scores);
+  assert.match(await reply('/list'), /<a href="https:\/\/t.me\/nft\/scaredcat-845">Scared Cat #845<\/a>/);
+  assert.equal(await reply('/mono t.me/nft/ScaredCat-845'), '<b>scaredcat-845</b>: 76% — partial match');
+  for (const unknown of ['/mono scaredcat-1', '/mono scaredcat-9999', '/mono nosuchcollection-1']) assert.match(await reply(unknown), /no stored score/, unknown);
+  assert.deepEqual(await (await api('/gifts/mono?gift=ScaredCat-845')).json(), { key: 'scaredcat-845', score: 76, name: 'Scared Cat #845', model: 'Weedcat', backdrop: 'Shamrock Green', symbol: 'Scarecrow' });
+  assert.equal((await (await api('/gifts/mono?gift=scaredcat-2')).json()).score, null, 'no stored score: the page works it out');
+  assert.equal((await api('/gifts/mono?gift=missing-1')).status, 404);
+  assert.equal((await api('/gifts/mono?gift=nonsense')).status, 400);
+
+  assert.match(await reply('/stop'), /^alerts stopped/);
+  assert.equal((await (await api('/track')).json()).linked, false);
+  assert.match(await reply('/list'), /press "link telegram"/);
+  assert.equal((await (await api('/track/link', 'DELETE')).json()).linked, false);
+  globalThis.fetch = realFetch;
+}
+
+// The calculator's own check, for gifts clue.tg never scored, gives what clue.tg's Python gave.
+{
+  const code = read('../tools/mono/index.html').match(/<script id="mono-math">([\s\S]*?)<\/script>/)[1];
+  const page = vm.runInNewContext(`${code}; ({ monoScore, monoLabel })`);
+  const fill = k => ({ ty: 'fl', c: { k } });
+  const gradient = (p, k) => ({ ty: 'gf', g: { p, k: { k } } });
+  // A glow and an unused asset are left out, a nested composition is followed once, and an animated gradient's first frame counts.
+  const animation = {
+    layers: [{ nm: 'Gift', refId: 'g' }, { nm: 'Background', shapes: [{ it: [gradient(2, [0, 0.80, 0.62, 0.20, 1, 0.5, 0.4, 0.1])] }] }],
+    assets: [
+      { id: 'g', layers: [{ ty: 0, refId: 'inner' }, { nm: 'Outer Glow', shapes: [fill([1, 0, 0, 1])] }, { shapes: [fill([0.85, 0.65, 0.15, 1]), fill([0.05, 0.05, 0.05, 1]), fill([0.85, 0.65, 0.15, 1])] }] },
+      { id: 'inner', layers: [{ ty: 0, refId: 'g' }, { shapes: [{ ty: 'gf', g: { p: 2, k: { k: [{ s: [0, 0.2, 0.3, 0.9, 1, 0.9, 0.7, 0.2] }] } } }, fill([{ s: [1] }])] }] },
+      { id: 'unused', layers: [{ shapes: [fill([0, 1, 0, 1])] }] },
+    ],
+  };
+  assert.equal(page.monoScore(animation), 68.1);
+  // A grey backdrop matches on lightness.
+  assert.equal(page.monoScore({ layers: [{ nm: 'Gift', refId: 'g' }, { nm: 'Background', shapes: [{ it: [gradient(1, [0, 0.5, 0.5, 0.52])] }] }],
+    assets: [{ id: 'g', layers: [{ shapes: [fill([0.95, 0.95, 0.95, 1]), fill([0.3, 0.32, 0.31, 1])] }] }] }), 80);
+  assert.equal(page.monoScore({ layers: [{ nm: 'Gift', refId: 'g' }] }), null, 'no backdrop, no score');
+  assert.deepEqual([80, 79.9, 55, 54.9].map(page.monoLabel), ['strong match', 'partial match', 'partial match', 'low match']);
+  assert.equal(page.monoLabel(80), gifts.monoLabel(80));
+  assert.equal(page.monoLabel(54), gifts.monoLabel(54));
 }
 
 console.log('all checks passed');
